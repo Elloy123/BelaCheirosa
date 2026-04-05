@@ -1,0 +1,17 @@
+{% extends 'admin_panel/base.html' %}
+{% block title %}Vendas{% endblock %}
+{% block content %}
+<h1 class="h4 text-rose mb-3">Vendas</h1>
+<form class="row g-2 mb-3">
+  <div class="col-md-4"><input name="q" value="{{ q }}" class="form-control" placeholder="Cliente ou nº da venda"></div>
+  <div class="col-md-3"><select name="status" class="form-select"><option value="">Todos status</option>{% for v,l in status_choices %}<option value="{{ v }}" {% if status == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+  <div class="col-md-3"><select name="forma" class="form-select"><option value="">Todos pagamentos</option>{% for v,l in forma_choices %}<option value="{{ v }}" {% if forma == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+  <div class="col-md-2"><button class="btn btn-rose w-100">Filtrar</button></div>
+</form>
+<div class="alert alert-light border">Total filtrado: <strong>R$ {{ total_filtrado|floatformat:2 }}</strong></div>
+<div class="card border-0 shadow-sm"><div class="table-responsive"><table class="table mb-0"><thead><tr><th>#</th><th>Data</th><th>Cliente</th><th>Itens</th><th>Pagamento</th><th>Status</th><th>Total</th><th></th></tr></thead><tbody>
+{% for v in vendas %}
+<tr><td>#{{ v.id }}</td><td>{{ v.data|date:'d/m/Y H:i' }}</td><td>{{ v.cliente.nome|default:'Consumidor Final' }}</td><td>{{ v.itens.count }}</td><td>{{ v.get_forma_pagamento_display }}</td><td>{{ v.get_status_display }}</td><td>R$ {{ v.total|floatformat:2 }}</td><td><a href="{% url 'venda_detalhe' v.id %}">Detalhe</a></td></tr>
+{% empty %}<tr><td colspan="8" class="text-center text-muted py-4">Sem vendas</td></tr>{% endfor %}
+</tbody></table></div></div>
+{% endblock %}

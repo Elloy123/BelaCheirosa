@@ -1,0 +1,23 @@
+{% extends 'admin_panel/base.html' %}
+{% block title %}Movimentar Estoque{% endblock %}
+{% block content %}
+<h1 class="h4 text-rose mb-3">Movimentar Estoque - {{ produto.nome }}</h1>
+<div class="row g-3">
+  <div class="col-md-5">
+    <div class="card border-0 shadow-sm"><div class="card-body">
+      <form method="post">
+        {% csrf_token %}
+        <div class="mb-2"><label class="form-label">Tipo</label><select name="tipo" class="form-select"><option value="entrada">Entrada</option><option value="saida">Saída</option><option value="ajuste">Ajuste</option></select></div>
+        <div class="mb-2"><label class="form-label">Quantidade</label><input type="number" class="form-control" name="quantidade" min="1" required></div>
+        <div class="mb-3"><label class="form-label">Observação</label><input class="form-control" name="observacao"></div>
+        <button class="btn btn-rose">Salvar</button>
+      </form>
+    </div></div>
+  </div>
+  <div class="col-md-7">
+    <div class="card border-0 shadow-sm"><div class="card-header bg-white">Histórico</div><div class="card-body p-0"><table class="table mb-0"><thead><tr><th>Data</th><th>Tipo</th><th>Qtd</th><th>Obs.</th></tr></thead><tbody>
+      {% for m in historico %}<tr><td>{{ m.data|date:'d/m/Y H:i' }}</td><td>{{ m.get_tipo_display }}</td><td>{{ m.quantidade }}</td><td>{{ m.observacao }}</td></tr>{% empty %}<tr><td colspan="4" class="text-center py-3 text-muted">Sem movimentações</td></tr>{% endfor %}
+    </tbody></table></div></div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,29 @@
+{% extends 'admin_panel/base.html' %}
+{% block title %}Cliente{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="h4 text-rose mb-0">{{ cliente.nome }}</h1>
+  <a class="btn btn-outline-secondary btn-sm" href="{% url 'lista_clientes' %}">Voltar</a>
+</div>
+<div class="row g-3">
+  <div class="col-md-4">
+    <div class="card border-0 shadow-sm"><div class="card-body">
+      <p><strong>CPF:</strong> {{ cliente.cpf|default:'-' }}</p>
+      <p><strong>Telefone:</strong> {{ cliente.telefone|default:'-' }}</p>
+      <p><strong>E-mail:</strong> {{ cliente.email|default:'-' }}</p>
+      <p><strong>Situação:</strong> {{ cliente.situacao }}</p>
+      <p><strong>Limite:</strong> R$ {{ cliente.limite_credito|floatformat:2 }}</p>
+      <p><strong>Em aberto:</strong> R$ {{ total_pendente|floatformat:2 }}</p>
+    </div></div>
+  </div>
+  <div class="col-md-8">
+    <div class="card border-0 shadow-sm"><div class="card-header bg-white">Histórico de vendas</div><div class="card-body p-0">
+      <table class="table mb-0"><thead><tr><th>#</th><th>Data</th><th>Status</th><th>Total</th><th></th></tr></thead><tbody>
+      {% for v in vendas %}
+      <tr><td>#{{ v.id }}</td><td>{{ v.data|date:'d/m/Y H:i' }}</td><td>{{ v.get_status_display }}</td><td>R$ {{ v.total|floatformat:2 }}</td><td><a href="{% url 'venda_detalhe' v.id %}">Detalhe</a></td></tr>
+      {% empty %}<tr><td colspan="5" class="text-center text-muted py-3">Sem vendas</td></tr>{% endfor %}
+      </tbody></table>
+    </div></div>
+  </div>
+</div>
+{% endblock %}

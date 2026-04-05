@@ -1,0 +1,156 @@
+{% extends 'admin_panel/base.html' %}
+{% block title %}{% if produto %}Editar produto{% else %}Novo produto{% endif %}{% endblock %}
+{% block content %}
+<h1 class="h4 text-rose mb-3">{% if produto %}Editar produto{% else %}Novo produto{% endif %}</h1>
+
+<div class="card border-0 shadow-sm p-3 mb-3">
+  <h2 class="h6 mb-3">Cadastro rapido de categorias</h2>
+  <div class="row g-3">
+    <div class="col-lg-6">
+      <form method="post" action="{% url 'categoria_rapida_form' %}" class="row g-2">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <div class="col-12"><label class="form-label mb-1">Nova categoria principal</label></div>
+        <div class="col-8"><input type="text" name="nome" class="form-control" placeholder="Ex: Oleo" required></div>
+        <div class="col-4"><button class="btn btn-outline-secondary w-100">Adicionar</button></div>
+      </form>
+    </div>
+    <div class="col-lg-6">
+      <form method="post" action="{% url 'subcategoria_rapida_form' %}" class="row g-2">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <div class="col-12"><label class="form-label mb-1">Nova subcategoria</label></div>
+        <div class="col-5">
+          <select name="categoria_pai_id" class="form-select" required>
+            <option value="">Categoria principal</option>
+            {% for c in categorias_pai %}
+            <option value="{{ c.id }}">{{ c.nome }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-4"><input type="text" name="nome" class="form-control" placeholder="Ex: Oleo Termico" required></div>
+        <div class="col-3"><button class="btn btn-outline-secondary w-100">Adicionar</button></div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<form method="post" enctype="multipart/form-data" class="card border-0 shadow-sm p-3">
+  {% csrf_token %}
+  {% if form.errors %}
+  <div class="alert alert-danger">Verifique os campos destacados abaixo.</div>
+  {% endif %}
+
+  <div class="row g-3">
+    <div class="col-md-4">
+      <label class="form-label">{{ form.categoria_pai.label }}</label>
+      {{ form.categoria_pai }}
+      {% for e in form.categoria_pai.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">{{ form.categoria.label }}</label>
+      {{ form.categoria }}
+      {% for e in form.categoria.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">{{ form.codigo.label }}</label>
+      {{ form.codigo }}
+      {% for e in form.codigo.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+    </div>
+
+    <div class="col-md-6">
+      <label class="form-label">{{ form.nome.label }}</label>
+      {{ form.nome }}
+      {% for e in form.nome.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">{{ form.imagem.label }}</label>
+      {{ form.imagem }}
+      {% for e in form.imagem.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+    </div>
+
+    <div class="col-12">
+      <label class="form-label">{{ form.descricao.label }}</label>
+      {{ form.descricao }}
+      {% for e in form.descricao.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+    </div>
+
+    <div class="col-md-3">
+      <label class="form-label">{{ form.custo.label }}</label>
+      {{ form.custo }}
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">{{ form.preco.label }}</label>
+      {{ form.preco }}
+    </div>
+    <div class="col-md-2">
+      <label class="form-label">{{ form.estoque.label }}</label>
+      {{ form.estoque }}
+    </div>
+    <div class="col-md-2">
+      <label class="form-label">{{ form.estoque_minimo.label }}</label>
+      {{ form.estoque_minimo }}
+    </div>
+    <div class="col-md-2 d-flex align-items-end">
+      <div class="form-check">
+        {{ form.ativo }}
+        <label class="form-check-label ms-1">{{ form.ativo.label }}</label>
+      </div>
+    </div>
+  </div>
+
+  <div class="mt-3 d-flex gap-2">
+    <button class="btn btn-rose">Salvar</button>
+    <a class="btn btn-outline-secondary" href="{% url 'lista_produtos' %}">Cancelar</a>
+  </div>
+</form>
+
+{{ categorias_sub|json_script:'subcats-data' }}
+<script>
+(function () {
+  const pai = document.getElementById('id_categoria_pai');
+  const sub = document.getElementById('id_categoria');
+  if (!pai || !sub) return;
+
+  const subcats = JSON.parse(document.getElementById('subcats-data').textContent);
+
+  const allOptions = Array.from(sub.options).map((opt) => ({
+    value: opt.value,
+    label: opt.text,
+    selected: opt.selected,
+  }));
+
+  function repopular() {
+    const paiId = pai.value;
+    const selectedBefore = sub.value;
+
+    sub.innerHTML = '';
+
+    const empty = document.createElement('option');
+    empty.value = '';
+    empty.textContent = '---------';
+    sub.appendChild(empty);
+
+    if (!paiId) return;
+
+    for (const opt of allOptions) {
+      if (!opt.value) continue;
+      const subcat = subcats.find((s) => String(s.id) === String(opt.value));
+      if (!subcat) continue;
+      if (paiId && String(subcat.parent_id) !== String(paiId)) continue;
+
+      const el = document.createElement('option');
+      el.value = opt.value;
+      el.textContent = opt.label;
+      if (String(opt.value) === String(selectedBefore)) {
+        el.selected = true;
+      }
+      sub.appendChild(el);
+    }
+  }
+
+  pai.addEventListener('change', repopular);
+  repopular();
+})();
+</script>
+{% endblock %}

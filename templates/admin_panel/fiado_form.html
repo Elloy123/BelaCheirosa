@@ -1,0 +1,17 @@
+{% extends 'admin_panel/base.html' %}
+{% block title %}Novo fiado{% endblock %}
+{% block content %}
+<h1 class="h4 text-rose mb-3">Novo registro de fiado</h1>
+<div class="card border-0 shadow-sm"><div class="card-body">
+<form method="post" class="row g-2">{% csrf_token %}
+  <div class="col-md-6"><label class="form-label">Cliente</label><select name="cliente_id" class="form-select" required>{% for c in clientes %}<option value="{{ c.id }}">{{ c.nome }}</option>{% endfor %}</select></div>
+  <div class="col-md-6"><label class="form-label">Referência</label><input name="referencia" class="form-control" required></div>
+  <div class="col-md-4"><label class="form-label">Valor total</label><input type="number" step="0.01" name="valor_total" class="form-control" required></div>
+  <div class="col-md-4"><label class="form-label">Valor pago</label><input type="number" step="0.01" name="valor_pago" class="form-control" value="0"></div>
+  <div class="col-md-4"><label class="form-label">Vencimento</label><input type="date" name="vencimento" class="form-control" required></div>
+  <div class="col-md-4"><label class="form-label">Status</label><select name="status" class="form-select">{% for v,l in status_choices %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select></div>
+  <div class="col-md-8"><label class="form-label">Observação</label><input name="observacao" class="form-control"></div>
+  <div class="col-12"><button class="btn btn-rose">Salvar</button></div>
+</form>
+</div></div>
+{% endblock %}

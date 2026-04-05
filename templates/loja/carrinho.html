@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+{% block title %}Carrinho{% endblock %}
+{% block content %}
+<h1 class="h3 text-rose mb-3">Carrinho</h1>
+<div class="row g-4">
+  <div class="col-lg-8">
+    <div class="card border-0 shadow-sm">
+      <div class="card-body p-0">
+        <table class="table mb-0">
+          <thead class="table-light"><tr><th>Produto</th><th>Qtd</th><th>Preço</th><th>Subtotal</th><th></th></tr></thead>
+          <tbody>
+            {% for item in itens %}
+            <tr>
+              <td>{{ item.nome }}</td>
+              <td>
+                <form method="post" action="{% url 'carrinho_atualizar' item.produto_id %}" class="d-flex gap-1">
+                  {% csrf_token %}
+                  <input name="qtd" type="number" min="0" value="{{ item.qtd }}" class="form-control form-control-sm" style="max-width:90px">
+                  <button class="btn btn-sm btn-outline-secondary">Atualizar</button>
+                </form>
+              </td>
+              <td>R$ {{ item.preco|floatformat:2 }}</td>
+              <td>R$ {{ item.subtotal|floatformat:2 }}</td>
+              <td><a class="btn btn-sm btn-outline-danger" href="{% url 'carrinho_remover' item.produto_id %}">Remover</a></td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" class="text-center text-muted py-4">Carrinho vazio</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card border-0 shadow-sm">
+      <div class="card-body">
+        <h5 class="mb-3">Finalizar venda</h5>
+        <form method="post" action="{% url 'checkout' %}">
+          {% csrf_token %}
+          <div class="mb-2">
+            <label class="form-label">Cliente digital - Nome</label>
+            <input class="form-control" name="nome_cliente" placeholder="Nome do cliente">
+          </div>
+          <div class="mb-2">
+            <label class="form-label">Endereço</label>
+            <input class="form-control" name="endereco_cliente" placeholder="Rua, número, bairro">
+          </div>
+          <div class="mb-2">
+            <label class="form-label">Pagamento</label>
+            <select class="form-select" name="forma_pagamento">
+              {% for val,label in formas %}<option value="{{ val }}">{{ label }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="mb-2"><label class="form-label">Desconto</label><input class="form-control" type="number" name="desconto" step="0.01" value="0"></div>
+          <div class="mb-3"><label class="form-label">Observação</label><textarea class="form-control" name="observacao" rows="2"></textarea></div>
+          <div class="d-flex justify-content-between mb-3"><strong>Total</strong><strong class="text-rose">R$ {{ total|floatformat:2 }}</strong></div>
+          <button class="btn btn-rose w-100">Registrar venda no WhatsApp</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,44 @@
+{% extends 'admin_panel/base.html' %}
+{% block title %}Produtos{% endblock %}
+{% block content %}
+<h1 class="h4 text-rose mb-3">Produtos</h1>
+<form class="row g-2 mb-3">
+  <div class="col-md-5"><input name="q" value="{{ q }}" class="form-control" placeholder="Buscar nome ou código"></div>
+  <div class="col-md-3">
+    <select name="cat" class="form-select">
+      <option value="">Todas categorias</option>
+      {% for c in categorias_pai %}
+      <option value="{{ c.slug }}" {% if cat == c.slug %}selected{% endif %}>{{ c.nome }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-2"><button class="btn btn-rose w-100">Filtrar</button></div>
+  <div class="col-md-2"><a class="btn btn-outline-secondary w-100" href="{% url 'produto_novo' %}">Novo produto</a></div>
+</form>
+<div class="card border-0 shadow-sm">
+  <div class="table-responsive">
+    <table class="table mb-0">
+      <thead>
+        <tr><th>Produto</th><th>Categoria</th><th>Preço</th><th>Estoque</th><th>Ativo</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for p in produtos %}
+        <tr>
+          <td>
+            <div class="fw-semibold">{{ p.nome }}</div>
+            <small class="text-muted">{{ p.codigo|default:'Sem código' }}</small>
+          </td>
+          <td>{% if p.categoria %}{{ p.categoria }}{% else %}-{% endif %}</td>
+          <td>R$ {{ p.preco|floatformat:2 }}</td>
+          <td>{{ p.estoque }}</td>
+          <td>{% if p.ativo %}Sim{% else %}Não{% endif %}</td>
+          <td class="text-end"><a href="{% url 'produto_editar' p.id %}">Editar</a></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" class="text-center py-4 text-muted">Sem produtos</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

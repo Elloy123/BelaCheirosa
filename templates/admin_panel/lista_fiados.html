@@ -1,0 +1,21 @@
+{% extends 'admin_panel/base.html' %}
+{% block title %}Clientes fiado{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="h4 text-rose mb-0">Controle de Fiado</h1>
+  <a href="{% url 'fiado_novo' %}" class="btn btn-rose btn-sm">Novo fiado</a>
+</div>
+<div class="row g-2 mb-3">
+  <div class="col-md-6"><div class="alert alert-warning mb-0">Vencendo em até 3 dias: <strong>{{ qtd_alerta }}</strong></div></div>
+  <div class="col-md-6"><div class="alert alert-danger mb-0">Vencidos: <strong>{{ qtd_vencidos }}</strong></div></div>
+</div>
+<div class="card border-0 shadow-sm"><div class="table-responsive"><table class="table mb-0">
+<thead><tr><th>Cliente</th><th>Referência</th><th>Vencimento</th><th>Total</th><th>Pago</th><th>Falta</th><th>Dias</th><th>Status</th></tr></thead>
+<tbody>
+{% for f in fiados %}
+<tr class="{% if f.dias_para_vencer < 0 and f.status != 'pago' %}table-danger{% elif f.dias_para_vencer <= 3 and f.status != 'pago' %}table-warning{% endif %}">
+  <td>{{ f.cliente.nome }}</td><td>{{ f.referencia }}</td><td>{{ f.vencimento|date:'d/m/Y' }}</td><td>R$ {{ f.valor_total|floatformat:2 }}</td><td>R$ {{ f.valor_pago|floatformat:2 }}</td><td>R$ {{ f.falta_pagar|floatformat:2 }}</td><td>{{ f.dias_para_vencer }}</td><td>{{ f.get_status_display }}</td>
+</tr>
+{% empty %}<tr><td colspan="8" class="text-center text-muted py-4">Sem registros.</td></tr>{% endfor %}
+</tbody></table></div></div>
+{% endblock %}

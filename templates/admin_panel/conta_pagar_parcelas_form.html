@@ -1,0 +1,34 @@
+{% extends 'admin_panel/base.html' %}
+{% block title %}Adicionar parcelas{% endblock %}
+{% block content %}
+<h1 class="h4 text-rose mb-3">Adicionar parcelas ao boleto</h1>
+<div class="card border-0 shadow-sm"><div class="card-body">
+  <div class="mb-3">
+    <div><strong>Fornecedor:</strong> {{ conta.fornecedor }}</div>
+    <div><strong>Referência:</strong> {{ conta.referencia }}</div>
+    <div><strong>Parcela atual:</strong> {{ conta.parcela_label }}</div>
+  </div>
+  <form method="post" class="row g-2">{% csrf_token %}
+    <div class="col-md-4">
+      <label class="form-label">Quantidade de novas parcelas</label>
+      <input type="number" min="1" name="quantidade" class="form-control" value="1" required>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Valor por parcela</label>
+      <input type="number" step="0.01" name="valor_parcela" class="form-control" value="{{ conta.valor_total }}" required>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Primeiro vencimento</label>
+      <input type="date" name="primeiro_vencimento" class="form-control" value="{{ conta.vencimento|date:'Y-m-d' }}" required>
+    </div>
+    <div class="col-12">
+      <label class="form-label">Observação</label>
+      <input type="text" name="observacao" class="form-control" placeholder="Opcional">
+    </div>
+    <div class="col-12 d-flex gap-2">
+      <button class="btn btn-rose">Adicionar parcelas</button>
+      <a href="{% url 'lista_contas_pagar' %}" class="btn btn-outline-secondary">Voltar</a>
+    </div>
+  </form>
+</div></div>
+{% endblock %}

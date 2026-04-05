@@ -1,0 +1,37 @@
+{% extends 'admin_panel/base.html' %}
+{% block title %}Pedidos pendentes{% endblock %}
+{% block content %}
+<h1 class="h4 text-rose mb-3">Pedidos da Loja (WhatsApp)</h1>
+<form class="row g-2 mb-3">
+  <div class="col-md-4">
+    <select name="status" class="form-select">
+      {% for v,l in status_choices %}<option value="{{ v }}" {% if status == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="col-md-2"><button class="btn btn-rose w-100">Filtrar</button></div>
+</form>
+<div class="card border-0 shadow-sm"><div class="table-responsive"><table class="table mb-0">
+<thead><tr><th>#</th><th>Data</th><th>Cliente</th><th>Pagamento</th><th>Total</th><th>Status</th><th>Ação</th></tr></thead>
+<tbody>
+{% for p in pedidos %}
+<tr>
+  <td>#{{ p.id }}</td>
+  <td>{{ p.criado_em|date:'d/m/Y H:i' }}</td>
+  <td>{{ p.cliente_nome|default:'Não informado' }}</td>
+  <td>{{ p.get_forma_pagamento_display }}</td>
+  <td>R$ {{ p.total|floatformat:2 }}</td>
+  <td>{{ p.get_status_display }}</td>
+  <td>
+    <form method="post" action="{% url 'pedido_atualizar_status' p.id %}" class="d-flex gap-1">
+      {% csrf_token %}
+      <select name="status" class="form-select form-select-sm">
+        {% for v,l in status_choices %}<option value="{{ v }}" {% if p.status == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+      </select>
+      <button class="btn btn-sm btn-outline-secondary">Salvar</button>
+    </form>
+  </td>
+</tr>
+{% empty %}<tr><td colspan="7" class="text-center text-muted py-4">Sem pedidos.</td></tr>{% endfor %}
+</tbody>
+</table></div></div>
+{% endblock %}

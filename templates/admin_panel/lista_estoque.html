@@ -1,0 +1,20 @@
+{% extends 'admin_panel/base.html' %}
+{% block title %}Estoque{% endblock %}
+{% block content %}
+<h1 class="h4 text-rose mb-3">Estoque</h1>
+<form class="row g-2 mb-3">
+  <div class="col-md-5"><input name="q" value="{{ q }}" class="form-control" placeholder="Buscar nome ou código"></div>
+  <div class="col-md-3"><select name="situacao" class="form-select"><option value="">Todas situações</option><option {% if situacao == 'OK' %}selected{% endif %}>OK</option><option {% if situacao == 'Baixo' %}selected{% endif %}>Baixo</option><option {% if situacao == 'Zerado' %}selected{% endif %}>Zerado</option></select></div>
+  <div class="col-md-2"><button class="btn btn-rose w-100">Filtrar</button></div>
+</form>
+<div class="row g-2 mb-3">
+  <div class="col-md-4"><div class="alert alert-light border mb-0">Valor total: <strong>R$ {{ total_valor|floatformat:2 }}</strong></div></div>
+  <div class="col-md-4"><div class="alert alert-warning mb-0">Baixo: <strong>{{ qtd_baixo }}</strong></div></div>
+  <div class="col-md-4"><div class="alert alert-danger mb-0">Zerado: <strong>{{ qtd_zerado }}</strong></div></div>
+</div>
+<div class="card border-0 shadow-sm"><div class="table-responsive"><table class="table mb-0"><thead><tr><th>Produto</th><th>Estoque</th><th>Mínimo</th><th>Situação</th><th>Valor</th><th></th></tr></thead><tbody>
+{% for r in resultado %}
+<tr><td>{{ r.produto.nome }}</td><td>{{ r.produto.estoque }}</td><td>{{ r.produto.estoque_minimo }}</td><td>{{ r.situacao }}</td><td>R$ {{ r.valor_estoque|floatformat:2 }}</td><td><a href="{% url 'movimentar_estoque' r.produto.id %}">Movimentar</a></td></tr>
+{% empty %}<tr><td colspan="6" class="text-center py-4 text-muted">Sem produtos</td></tr>{% endfor %}
+</tbody></table></div></div>
+{% endblock %}
