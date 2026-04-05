@@ -1,76 +1,55 @@
 # Deploy no PythonAnywhere
 
-## 1) Enviar o projeto para o servidor
+## Primeiro deploy (mais rapido)
+
 No Bash Console do PythonAnywhere:
 
 ```bash
 cd ~
-git clone <url-do-seu-repositorio> belacheirosa_web
+git clone https://github.com/Elloy123/BelaCheirosa.git belacheirosa_web
 cd belacheirosa_web
-python3.11 -m venv .venv
-source .venv/bin/activate
-pip install --upgrade pip
-pip install -r requirements.txt
+bash pythonanywhere_first_deploy.sh
 ```
 
-## 2) Configurar variaveis de ambiente
-Crie um arquivo `.env` (ou use variaveis no WSGI) com base em `.env.pythonanywhere.example`.
+Depois edite o arquivo `.env`:
 
-Exemplo minimo:
+```bash
+nano ~/belacheirosa_web/.env
+```
+
+Exemplo:
 
 ```env
-DJANGO_SECRET_KEY=sua-chave-segura
+DJANGO_SECRET_KEY=troque-por-uma-chave-segura
 DEBUG=False
-ALLOWED_HOSTS=seuusuario.pythonanywhere.com
-CSRF_TRUSTED_ORIGINS=https://seuusuario.pythonanywhere.com
+ALLOWED_HOSTS=Elloy123.pythonanywhere.com
+CSRF_TRUSTED_ORIGINS=https://Elloy123.pythonanywhere.com
 LOJA_WHATSAPP=5593991512300
 ```
 
-## 3) Migrar banco e coletar arquivos estaticos
-Ainda no Bash:
+## Configuracao no painel Web do PythonAnywhere
+
+1. Crie o Web App (Manual, Python 3.11).
+2. Configure Virtualenv:
+   - `/home/<usuario>/belacheirosa_web/.venv`
+3. Configure WSGI file:
+   - `/home/<usuario>/belacheirosa_web/pythonanywhere_wsgi.py`
+4. Configure static:
+   - URL: `/static/`
+   - Dir: `/home/<usuario>/belacheirosa_web/staticfiles`
+5. Configure media:
+   - URL: `/media/`
+   - Dir: `/home/<usuario>/belacheirosa_web/media`
+6. Clique em Reload.
+
+## Atualizacoes futuras
+
+Quando fizer push novo no GitHub:
 
 ```bash
 cd ~/belacheirosa_web
-source .venv/bin/activate
-python manage.py migrate
-python manage.py collectstatic --noinput
+git pull
+bash pythonanywhere_reload.sh
 ```
 
-## 4) Configurar Web App no painel do PythonAnywhere
-1. Crie um novo Web App (Manual configuration, Python 3.11).
-2. Virtualenv:
-   - `/home/<seu_usuario>/belacheirosa_web/.venv`
-3. WSGI file:
-   - aponte para: `/home/<seu_usuario>/belacheirosa_web/pythonanywhere_wsgi.py`
-4. Static files:
-   - URL: `/static/`
-   - Directory: `/home/<seu_usuario>/belacheirosa_web/staticfiles`
-5. Media files:
-   - URL: `/media/`
-   - Directory: `/home/<seu_usuario>/belacheirosa_web/media`
-
-## 5) Carregar variaveis no WSGI (se usar arquivo .env)
-No arquivo WSGI, acima da linha `application = ...`, carregue as variaveis:
-
-```python
-from dotenv import load_dotenv
-load_dotenv('/home/<seu_usuario>/belacheirosa_web/.env')
-```
-
-Se usar esse trecho, instale:
-
-```bash
-pip install python-dotenv
-```
-
-## 6) Reiniciar app
-No painel Web do PythonAnywhere, clique em **Reload**.
-
-## 7) Verificacao rapida
-- Abra o dominio `.pythonanywhere.com`.
-- Acesse `/admin/`.
-- Teste a pagina inicial e os CSS.
-
-## Observacoes
-- Para facilitar atualizacoes, use Git + `git pull` no servidor.
-- Depois de atualizar codigo: rode `migrate`, `collectstatic` e clique em **Reload**.
+Depois clique em Reload no painel Web.
