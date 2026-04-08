@@ -561,12 +561,9 @@ def categoria_rapida_form(request):
 		messages.error(request, "Informe o nome da categoria principal.")
 		return redirect(next_url)
 
-	existente = Categoria.objects.filter(nome__iexact=nome).first()
+	existente = Categoria.objects.filter(parent__isnull=True, nome__iexact=nome).first()
 	if existente:
-		if existente.parent_id:
-			messages.error(request, f"Ja existe uma subcategoria com esse nome: {existente.nome}.")
-		else:
-			messages.info(request, f"Categoria ja existente: {existente.nome}.")
+		messages.info(request, f"Categoria ja existente: {existente.nome}.")
 		return redirect(next_url)
 
 	Categoria.objects.create(nome=nome, slug=_gerar_slug_categoria(nome))
@@ -588,12 +585,9 @@ def subcategoria_rapida_form(request):
 		return redirect(next_url)
 
 	pai = get_object_or_404(Categoria, pk=parent_id, parent__isnull=True)
-	existente = Categoria.objects.filter(nome__iexact=nome).first()
+	existente = Categoria.objects.filter(parent=pai, nome__iexact=nome).first()
 	if existente:
-		if existente.parent_id == pai.id:
-			messages.info(request, f"Subcategoria ja existente em {pai.nome}: {existente.nome}.")
-		else:
-			messages.error(request, f"Ja existe uma categoria com esse nome: {existente.nome}.")
+		messages.info(request, f"Subcategoria ja existente em {pai.nome}: {existente.nome}.")
 		return redirect(next_url)
 
 	Categoria.objects.create(nome=nome, slug=_gerar_slug_categoria(nome), parent=pai)
