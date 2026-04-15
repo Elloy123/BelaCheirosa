@@ -9,9 +9,46 @@
   <div class="col-md-2"><button class="btn btn-rose w-100">Filtrar</button></div>
 </form>
 <div class="alert alert-light border">Total filtrado: <strong>R$ {{ total_filtrado|floatformat:2 }}</strong></div>
-<div class="card border-0 shadow-sm"><div class="table-responsive"><table class="table mb-0"><thead><tr><th>#</th><th>Data</th><th>Cliente</th><th>Itens</th><th>Pagamento</th><th>Status</th><th>Total</th><th></th></tr></thead><tbody>
+<div class="card admin-shell-card"><div class="table-responsive"><table class="table admin-table"><thead><tr><th>#</th><th>Data</th><th>Cliente</th><th>Itens</th><th>Pagamento</th><th>Status</th><th>Total</th><th></th></tr></thead><tbody>
 {% for v in vendas %}
-<tr><td>#{{ v.id }}</td><td>{{ v.data|date:'d/m/Y H:i' }}</td><td>{{ v.cliente.nome|default:'Consumidor Final' }}</td><td>{{ v.itens.count }}</td><td>{{ v.get_forma_pagamento_display }}</td><td>{{ v.get_status_display }}</td><td>R$ {{ v.total|floatformat:2 }}</td><td><a href="{% url 'venda_detalhe' v.id %}">Detalhe</a></td></tr>
+<tr>
+  <td>#{{ v.id }}</td>
+  <td>{{ v.data|date:'d/m/Y H:i' }}</td>
+  <td>{{ v.cliente.nome|default:'Consumidor Final' }}</td>
+  <td>{{ v.itens.count }}</td>
+  <td>{{ v.get_forma_pagamento_display }}</td>
+  <td>
+    {% if v.status == 'concluida' %}
+    <span class="badge rounded-pill badge-soft-ok">{{ v.get_status_display }}</span>
+    {% elif v.status == 'pendente' %}
+    <span class="badge rounded-pill badge-soft-warning">{{ v.get_status_display }}</span>
+    {% else %}
+    <span class="badge rounded-pill badge-soft-danger">{{ v.get_status_display }}</span>
+    {% endif %}
+  </td>
+  <td>R$ {{ v.total|floatformat:2 }}</td>
+  <td><a class="admin-muted-link" href="{% url 'venda_detalhe' v.id %}">Detalhe</a></td>
+</tr>
 {% empty %}<tr><td colspan="8" class="text-center text-muted py-4">Sem vendas</td></tr>{% endfor %}
 </tbody></table></div></div>
+
+{% if page_obj and page_obj.paginator.num_pages > 1 %}
+<nav class="pagination-wrap" aria-label="Paginação de vendas">
+  <ul class="pagination justify-content-center mb-0">
+    <li class="page-item {% if not page_obj.has_previous %}disabled{% endif %}">
+      <a class="page-link" href="?{% if querystring %}{{ querystring }}&{% endif %}page=1">Primeira</a>
+    </li>
+    <li class="page-item {% if not page_obj.has_previous %}disabled{% endif %}">
+      <a class="page-link" href="?{% if querystring %}{{ querystring }}&{% endif %}page={% if page_obj.has_previous %}{{ page_obj.previous_page_number }}{% else %}1{% endif %}">Anterior</a>
+    </li>
+    <li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+    <li class="page-item {% if not page_obj.has_next %}disabled{% endif %}">
+      <a class="page-link" href="?{% if querystring %}{{ querystring }}&{% endif %}page={% if page_obj.has_next %}{{ page_obj.next_page_number }}{% else %}{{ page_obj.paginator.num_pages }}{% endif %}">Próxima</a>
+    </li>
+    <li class="page-item {% if not page_obj.has_next %}disabled{% endif %}">
+      <a class="page-link" href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ page_obj.paginator.num_pages }}">Última</a>
+    </li>
+  </ul>
+</nav>
+{% endif %}
 {% endblock %}

@@ -19,7 +19,7 @@
       <div class="img-wrap">
         <a href="{% url 'produto_detalhe' produto.slug %}" class="d-block w-100 h-100">
         {% if produto.imagem %}
-        <img src="{{ produto.imagem.url }}" class="card-img-top produto-thumb" alt="{{ produto.nome }}">
+        <img src="{{ produto.imagem.url }}" class="card-img-top produto-thumb" alt="{{ produto.nome }}" loading="lazy" decoding="async" width="320" height="240">
         {% else %}
         <div class="img-placeholder">Sem imagem</div>
         {% endif %}
@@ -48,4 +48,24 @@
   <p>Nenhum produto encontrado.</p>
   {% endfor %}
 </div>
+
+{% if page_obj and page_obj.paginator.num_pages > 1 %}
+<nav class="pagination-wrap" aria-label="Paginação do catálogo">
+  <ul class="pagination justify-content-center mb-0">
+    <li class="page-item {% if not page_obj.has_previous %}disabled{% endif %}">
+      <a class="page-link" href="?{% if querystring %}{{ querystring }}&{% endif %}page=1">Primeira</a>
+    </li>
+    <li class="page-item {% if not page_obj.has_previous %}disabled{% endif %}">
+      <a class="page-link" href="?{% if querystring %}{{ querystring }}&{% endif %}page={% if page_obj.has_previous %}{{ page_obj.previous_page_number }}{% else %}1{% endif %}">Anterior</a>
+    </li>
+    <li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+    <li class="page-item {% if not page_obj.has_next %}disabled{% endif %}">
+      <a class="page-link" href="?{% if querystring %}{{ querystring }}&{% endif %}page={% if page_obj.has_next %}{{ page_obj.next_page_number }}{% else %}{{ page_obj.paginator.num_pages }}{% endif %}">Próxima</a>
+    </li>
+    <li class="page-item {% if not page_obj.has_next %}disabled{% endif %}">
+      <a class="page-link" href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ page_obj.paginator.num_pages }}">Última</a>
+    </li>
+  </ul>
+</nav>
+{% endif %}
 {% endblock %}

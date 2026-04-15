@@ -15,9 +15,9 @@
   <div class="col-md-2"><button class="btn btn-rose w-100">Filtrar</button></div>
   <div class="col-md-2"><a class="btn btn-outline-secondary w-100" href="{% url 'produto_novo' %}">Novo produto</a></div>
 </form>
-<div class="card border-0 shadow-sm">
+<div class="card admin-shell-card">
   <div class="table-responsive">
-    <table class="table mb-0">
+    <table class="table admin-table">
       <thead>
         <tr><th>Produto</th><th>Categoria</th><th>Preço</th><th>Estoque</th><th>Ativo</th><th></th></tr>
       </thead>
@@ -31,8 +31,14 @@
           <td>{% if p.categoria %}{{ p.categoria }}{% else %}-{% endif %}</td>
           <td>R$ {{ p.preco|floatformat:2 }}</td>
           <td>{{ p.estoque }}</td>
-          <td>{% if p.ativo %}Sim{% else %}Não{% endif %}</td>
-          <td class="text-end"><a href="{% url 'produto_editar' p.id %}">Editar</a></td>
+          <td>
+            {% if p.ativo %}
+            <span class="badge rounded-pill badge-soft-ok">Sim</span>
+            {% else %}
+            <span class="badge rounded-pill badge-soft-danger">Não</span>
+            {% endif %}
+          </td>
+          <td class="text-end"><a class="admin-muted-link" href="{% url 'produto_editar' p.id %}">Editar</a></td>
         </tr>
         {% empty %}
         <tr><td colspan="6" class="text-center py-4 text-muted">Sem produtos</td></tr>
@@ -41,4 +47,24 @@
     </table>
   </div>
 </div>
+
+{% if page_obj and page_obj.paginator.num_pages > 1 %}
+<nav class="pagination-wrap" aria-label="Paginação de produtos">
+  <ul class="pagination justify-content-center mb-0">
+    <li class="page-item {% if not page_obj.has_previous %}disabled{% endif %}">
+      <a class="page-link" href="?{% if querystring %}{{ querystring }}&{% endif %}page=1">Primeira</a>
+    </li>
+    <li class="page-item {% if not page_obj.has_previous %}disabled{% endif %}">
+      <a class="page-link" href="?{% if querystring %}{{ querystring }}&{% endif %}page={% if page_obj.has_previous %}{{ page_obj.previous_page_number }}{% else %}1{% endif %}">Anterior</a>
+    </li>
+    <li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+    <li class="page-item {% if not page_obj.has_next %}disabled{% endif %}">
+      <a class="page-link" href="?{% if querystring %}{{ querystring }}&{% endif %}page={% if page_obj.has_next %}{{ page_obj.next_page_number }}{% else %}{{ page_obj.paginator.num_pages }}{% endif %}">Próxima</a>
+    </li>
+    <li class="page-item {% if not page_obj.has_next %}disabled{% endif %}">
+      <a class="page-link" href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ page_obj.paginator.num_pages }}">Última</a>
+    </li>
+  </ul>
+</nav>
+{% endif %}
 {% endblock %}

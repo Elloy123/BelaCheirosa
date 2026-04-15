@@ -9,7 +9,20 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.admin.views.decorators import staff_member_required
 from django.conf import settings
-from django.db.models import Count, F, Q, Sum
+from django.core.paginator import Paginator
+from django.db.models import (
+	Case,
+	CharField,
+	Count,
+	DecimalField,
+	ExpressionWrapper,
+	F,
+	Q,
+	Sum,
+	Value,
+	When,
+)
+from django.db.models.functions import Coalesce
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.text import slugify
@@ -73,12 +86,37 @@ def _status_por_pagamento(valor_total, valor_pago):
 	return "pago"
 
 
+def _querystring_without_page(request):
+	params = request.GET.copy()
+	params.pop("page", None)
+	return params.urlencode()
+
+
+def _paginate(request, queryset, per_page):
+	paginator = Paginator(queryset, per_page)
+	return paginator.get_page(request.GET.get("page"))
+
+
+def _sum_subtotal_itens(item_queryset):
+	subtotal_expr = ExpressionWrapper(
+		F("preco_unitario") * F("quantidade"),
+		output_field=DecimalField(max_digits=14, decimal_places=2),
+	)
+	return item_queryset.aggregate(
+		total=Coalesce(
+			Sum(subtotal_expr),
+			Value(Decimal("0.00")),
+			output_field=DecimalField(max_digits=14, decimal_places=2),
+		)
+	)["total"]
+
+
 def home(request):
 	slug = request.GET.get("cat")
 	filtro = request.GET.get("filtro", "padrao")
 	busca = request.GET.get("q", "").strip()
 
-	base_produtos = Produto.objects.filter(ativo=True).select_related("categoria")
+	base_produtos = Produto.objects.filter(ativo=True).select_related("categoria", "categoria__parent")
 	produtos = base_produtos
 	categoria_ativa = None
 	categoria_pai_ativa = None
@@ -112,18 +150,24 @@ def home(request):
 		produtos = produtos.order_by("preco", "nome")
 	elif filtro == "mais_caros":
 		produtos = produtos.order_by("-preco", "nome")
+	else:
+		produtos = produtos.order_by("-criado_em", "nome")
+
+	page_obj = _paginate(request, produtos, per_page=16)
 
 	carrinho = Carrinho(request)
 	return render(
 		request,
 		"loja/home.html",
 		{
-			"produtos": produtos,
+			"produtos": page_obj.object_list,
+			"page_obj": page_obj,
 			"categoria_ativa": categoria_ativa,
 			"categoria_pai_ativa": categoria_pai_ativa,
 			"subcategorias_ativas": subcategorias_ativas,
 			"filtro_ativo": filtro,
 			"busca": busca,
+			"querystring": _querystring_without_page(request),
 			"carrinho_qtd": carrinho.count(),
 		},
 	)
@@ -157,7 +201,7 @@ def carrinho_detalhe(request):
 			"total": carrinho.total(),
 			"clientes": clientes,
 			"carrinho_qtd": carrinho.count(),
-			"formas": Venda.FORMA_PAGAMENTO,
+			"formas": [(v, l) for v, l in Venda.FORMA_PAGAMENTO if v != "fiado"],
 		},
 	)
 
@@ -237,19 +281,26 @@ def checkout(request):
 		return redirect("carrinho")
 
 	nome_cliente = request.POST.get("nome_cliente", "").strip()
+	if not nome_cliente:
+		messages.error(request, "Por favor, informe seu nome para continuar.")
+		return redirect("carrinho")
+
+	tipo_entrega = request.POST.get("tipo_entrega", "retirada")
 	endereco_cliente = request.POST.get("endereco_cliente", "").strip()
+	if tipo_entrega == "entrega" and not endereco_cliente:
+		messages.error(request, "Informe o endereço de entrega.")
+		return redirect("carrinho")
+
 	forma = request.POST.get("forma_pagamento", "dinheiro")
-	desconto = Decimal(request.POST.get("desconto", "0") or "0")
 	observacao = request.POST.get("observacao", "").strip()
 
-	total_bruto = sum(item["subtotal"] for item in itens)
-	total_final = total_bruto - desconto
+	total_final = sum(item["subtotal"] for item in itens)
 
 	pedido = Pedido.objects.create(
 		cliente_nome=nome_cliente,
 		cliente_endereco=endereco_cliente,
 		forma_pagamento=forma,
-		desconto=desconto,
+		desconto=Decimal("0.00"),
 		observacao=observacao,
 		status="pendente",
 	)
@@ -261,6 +312,8 @@ def checkout(request):
 			quantidade=item["qtd"],
 			preco_unitario=item["preco"],
 		)
+
+	tipo_label = "Entrega no endereço" if tipo_entrega == "entrega" else "Retirada na loja"
 
 	linhas = [
 		f"Olá! Gostaria de finalizar este pedido #{pedido.id}:",
@@ -274,15 +327,17 @@ def checkout(request):
 
 	linhas.extend([
 		"",
-		f"Subtotal: R$ {total_bruto:.2f}",
-		f"Desconto: R$ {desconto:.2f}",
 		f"*Total: R$ {total_final:.2f}*",
 		"",
 		"*Dados do cliente:*",
-		f"Nome: {nome_cliente or 'Não informado'}",
-		f"Endereço: {endereco_cliente or 'Não informado'}",
-		f"Pagamento: {dict(Venda.FORMA_PAGAMENTO).get(forma, forma)}",
+		f"Nome: {nome_cliente}",
+		f"Tipo: {tipo_label}",
 	])
+
+	if tipo_entrega == "entrega":
+		linhas.append(f"Endereço: {endereco_cliente}")
+
+	linhas.append(f"Pagamento: {dict(Venda.FORMA_PAGAMENTO).get(forma, forma)}")
 
 	if observacao:
 		linhas.append(f"Observação: {observacao}")
@@ -301,23 +356,70 @@ def dashboard(request):
 
 	vendas_hoje = Venda.objects.filter(data__date=hoje, status="concluida")
 	vendas_mes = Venda.objects.filter(data__date__gte=inicio_mes, status="concluida")
+	itens_hoje = ItemVenda.objects.filter(venda__in=vendas_hoje)
+	itens_mes = ItemVenda.objects.filter(venda__in=vendas_mes).select_related("produto")
 
-	faturamento_hoje = sum(v.total for v in vendas_hoje)
-	faturamento_mes = sum(v.total for v in vendas_mes)
-	lucro_mes = sum(
-		(item.preco_unitario - item.produto.custo) * item.quantidade
-		for venda in vendas_mes
-		for item in venda.itens.select_related("produto").all()
+	faturamento_hoje_bruto = _sum_subtotal_itens(itens_hoje)
+	faturamento_mes_bruto = _sum_subtotal_itens(itens_mes)
+
+	desconto_hoje = vendas_hoje.aggregate(
+		total=Coalesce(
+			Sum("desconto"),
+			Value(Decimal("0.00")),
+			output_field=DecimalField(max_digits=14, decimal_places=2),
+		)
+	)["total"]
+	desconto_mes = vendas_mes.aggregate(
+		total=Coalesce(
+			Sum("desconto"),
+			Value(Decimal("0.00")),
+			output_field=DecimalField(max_digits=14, decimal_places=2),
+		)
+	)["total"]
+
+	lucro_expr = ExpressionWrapper(
+		(F("preco_unitario") - F("produto__custo")) * F("quantidade"),
+		output_field=DecimalField(max_digits=14, decimal_places=2),
 	)
+	lucro_mes = itens_mes.aggregate(
+		total=Coalesce(
+			Sum(lucro_expr),
+			Value(Decimal("0.00")),
+			output_field=DecimalField(max_digits=14, decimal_places=2),
+		)
+	)["total"]
+
+	faturamento_hoje = faturamento_hoje_bruto - desconto_hoje
+	faturamento_mes = faturamento_mes_bruto - desconto_mes
 
 	baixo_estoque = Produto.objects.filter(ativo=True, estoque__lte=F("estoque_minimo"))
-	ultimas_vendas = Venda.objects.select_related("cliente")[:10]
+	ultimas_vendas = Venda.objects.select_related("cliente").prefetch_related("itens")[:10]
 
-	vendas_por_forma = (
-		vendas_mes.values("forma_pagamento")
-		.annotate(qtd=Count("id"), total=Sum("itens__preco_unitario"))
+	vendas_por_forma_raw = (
+		itens_mes.values("venda__forma_pagamento")
+		.annotate(
+			qtd=Count("venda_id", distinct=True),
+			total=Coalesce(
+				Sum(
+					ExpressionWrapper(
+						F("preco_unitario") * F("quantidade"),
+						output_field=DecimalField(max_digits=14, decimal_places=2),
+					)
+				),
+				Value(Decimal("0.00")),
+				output_field=DecimalField(max_digits=14, decimal_places=2),
+			),
+		)
 		.order_by("-qtd")
 	)
+	vendas_por_forma = [
+		{
+			"forma_pagamento": row["venda__forma_pagamento"],
+			"qtd": row["qtd"],
+			"total": row["total"],
+		}
+		for row in vendas_por_forma_raw
+	]
 
 	fiados_alerta = FiadoConta.objects.filter(
 		status__in=["pendente", "parcial"],
@@ -356,10 +458,17 @@ def lista_pedidos(request):
 	pedidos = Pedido.objects.prefetch_related("itens__produto")
 	if status:
 		pedidos = pedidos.filter(status=status)
+	page_obj = _paginate(request, pedidos, per_page=50)
 	return render(
 		request,
 		"admin_panel/lista_pedidos.html",
-		{"pedidos": pedidos[:200], "status": status, "status_choices": Pedido.STATUS},
+		{
+			"pedidos": page_obj.object_list,
+			"page_obj": page_obj,
+			"querystring": _querystring_without_page(request),
+			"status": status,
+			"status_choices": Pedido.STATUS,
+		},
 	)
 
 
@@ -411,7 +520,7 @@ def lista_vendas(request):
 	status = request.GET.get("status", "").strip()
 	forma = request.GET.get("forma", "").strip()
 
-	vendas = Venda.objects.select_related("cliente").prefetch_related("itens")
+	vendas = Venda.objects.select_related("cliente").order_by("-data")
 	if q:
 		vendas = vendas.filter(Q(cliente__nome__icontains=q) | Q(id__icontains=q))
 	if status:
@@ -419,12 +528,26 @@ def lista_vendas(request):
 	if forma:
 		vendas = vendas.filter(forma_pagamento=forma)
 
-	total_filtrado = sum(v.total for v in vendas)
+	itens_filtrados = ItemVenda.objects.filter(venda__in=vendas)
+	total_bruto = _sum_subtotal_itens(itens_filtrados)
+	total_desconto = vendas.aggregate(
+		total=Coalesce(
+			Sum("desconto"),
+			Value(Decimal("0.00")),
+			output_field=DecimalField(max_digits=14, decimal_places=2),
+		)
+	)["total"]
+	total_filtrado = total_bruto - total_desconto
+
+	vendas = vendas.prefetch_related("itens")
+	page_obj = _paginate(request, vendas, per_page=35)
 	return render(
 		request,
 		"admin_panel/lista_vendas.html",
 		{
-			"vendas": vendas[:150],
+			"vendas": page_obj.object_list,
+			"page_obj": page_obj,
+			"querystring": _querystring_without_page(request),
 			"total_filtrado": total_filtrado,
 			"status_choices": Venda.STATUS,
 			"forma_choices": Venda.FORMA_PAGAMENTO,
@@ -461,34 +584,47 @@ def lista_estoque(request):
 	q = request.GET.get("q", "").strip()
 	situacao = request.GET.get("situacao", "")
 
-	produtos = Produto.objects.filter(ativo=True).select_related("categoria")
+	valor_estoque_expr = ExpressionWrapper(
+		F("custo") * F("estoque"),
+		output_field=DecimalField(max_digits=14, decimal_places=2),
+	)
+	produtos = Produto.objects.filter(ativo=True).select_related("categoria").annotate(
+		situacao_calc=Case(
+			When(estoque=0, then=Value("Zerado")),
+			When(estoque__lte=F("estoque_minimo"), then=Value("Baixo")),
+			default=Value("OK"),
+			output_field=CharField(),
+		),
+		valor_estoque=valor_estoque_expr,
+	)
 	if q:
 		produtos = produtos.filter(Q(nome__icontains=q) | Q(codigo__icontains=q))
+	if situacao:
+		produtos = produtos.filter(situacao_calc=situacao)
 
-	resultado = []
-	for p in produtos:
-		if p.estoque == 0:
-			sit = "Zerado"
-		elif p.estoque <= p.estoque_minimo:
-			sit = "Baixo"
-		else:
-			sit = "OK"
-		if situacao and sit != situacao:
-			continue
-		resultado.append(
-			{"produto": p, "situacao": sit, "valor_estoque": p.custo * p.estoque}
-		)
+	resumo = produtos.aggregate(
+		total_valor=Coalesce(
+			Sum("valor_estoque"),
+			Value(Decimal("0.00")),
+			output_field=DecimalField(max_digits=14, decimal_places=2),
+		),
+		qtd_baixo=Count("id", filter=Q(situacao_calc="Baixo")),
+		qtd_zerado=Count("id", filter=Q(situacao_calc="Zerado")),
+	)
+	page_obj = _paginate(request, produtos.order_by("nome"), per_page=40)
 
 	return render(
 		request,
 		"admin_panel/lista_estoque.html",
 		{
-			"resultado": resultado,
+			"resultado": page_obj.object_list,
+			"page_obj": page_obj,
+			"querystring": _querystring_without_page(request),
 			"q": q,
 			"situacao": situacao,
-			"qtd_baixo": sum(1 for r in resultado if r["situacao"] == "Baixo"),
-			"qtd_zerado": sum(1 for r in resultado if r["situacao"] == "Zerado"),
-			"total_valor": sum(r["valor_estoque"] for r in resultado),
+			"qtd_baixo": resumo["qtd_baixo"],
+			"qtd_zerado": resumo["qtd_zerado"],
+			"total_valor": resumo["total_valor"],
 		},
 	)
 
@@ -498,19 +634,22 @@ def lista_produtos(request):
 	q = request.GET.get("q", "").strip()
 	cat = request.GET.get("cat", "").strip()
 
-	produtos = Produto.objects.select_related("categoria", "categoria__parent").all()
+	produtos = Produto.objects.select_related("categoria", "categoria__parent").order_by("nome")
 	if q:
 		produtos = produtos.filter(Q(nome__icontains=q) | Q(codigo__icontains=q))
 	if cat:
 		produtos = produtos.filter(
 			Q(categoria__slug=cat) | Q(categoria__parent__slug=cat)
 		)
+	page_obj = _paginate(request, produtos, per_page=40)
 
 	return render(
 		request,
 		"admin_panel/lista_produtos.html",
 		{
-			"produtos": produtos[:300],
+			"produtos": page_obj.object_list,
+			"page_obj": page_obj,
+			"querystring": _querystring_without_page(request),
 			"q": q,
 			"cat": cat,
 			"categorias_pai": Categoria.objects.filter(parent__isnull=True).order_by("nome"),

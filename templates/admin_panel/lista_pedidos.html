@@ -10,7 +10,7 @@
   </div>
   <div class="col-md-2"><button class="btn btn-rose w-100">Filtrar</button></div>
 </form>
-<div class="card border-0 shadow-sm"><div class="table-responsive"><table class="table mb-0">
+<div class="card admin-shell-card"><div class="table-responsive"><table class="table admin-table">
 <thead><tr><th>#</th><th>Data</th><th>Cliente</th><th>Pagamento</th><th>Total</th><th>Status</th><th>Ação</th></tr></thead>
 <tbody>
 {% for p in pedidos %}
@@ -20,18 +20,46 @@
   <td>{{ p.cliente_nome|default:'Não informado' }}</td>
   <td>{{ p.get_forma_pagamento_display }}</td>
   <td>R$ {{ p.total|floatformat:2 }}</td>
-  <td>{{ p.get_status_display }}</td>
+  <td>
+    {% if p.status == 'concluido' %}
+    <span class="badge rounded-pill badge-soft-ok">{{ p.get_status_display }}</span>
+    {% elif p.status == 'pendente' %}
+    <span class="badge rounded-pill badge-soft-warning">{{ p.get_status_display }}</span>
+    {% else %}
+    <span class="badge rounded-pill badge-soft-danger">{{ p.get_status_display }}</span>
+    {% endif %}
+  </td>
   <td>
     <form method="post" action="{% url 'pedido_atualizar_status' p.id %}" class="d-flex gap-1">
       {% csrf_token %}
       <select name="status" class="form-select form-select-sm">
         {% for v,l in status_choices %}<option value="{{ v }}" {% if p.status == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
       </select>
-      <button class="btn btn-sm btn-outline-secondary">Salvar</button>
+      <button class="btn btn-sm btn-outline-rose">Salvar</button>
     </form>
   </td>
 </tr>
 {% empty %}<tr><td colspan="7" class="text-center text-muted py-4">Sem pedidos.</td></tr>{% endfor %}
 </tbody>
 </table></div></div>
+
+{% if page_obj and page_obj.paginator.num_pages > 1 %}
+<nav class="pagination-wrap" aria-label="Paginação de pedidos">
+  <ul class="pagination justify-content-center mb-0">
+    <li class="page-item {% if not page_obj.has_previous %}disabled{% endif %}">
+      <a class="page-link" href="?{% if querystring %}{{ querystring }}&{% endif %}page=1">Primeira</a>
+    </li>
+    <li class="page-item {% if not page_obj.has_previous %}disabled{% endif %}">
+      <a class="page-link" href="?{% if querystring %}{{ querystring }}&{% endif %}page={% if page_obj.has_previous %}{{ page_obj.previous_page_number }}{% else %}1{% endif %}">Anterior</a>
+    </li>
+    <li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+    <li class="page-item {% if not page_obj.has_next %}disabled{% endif %}">
+      <a class="page-link" href="?{% if querystring %}{{ querystring }}&{% endif %}page={% if page_obj.has_next %}{{ page_obj.next_page_number }}{% else %}{{ page_obj.paginator.num_pages }}{% endif %}">Próxima</a>
+    </li>
+    <li class="page-item {% if not page_obj.has_next %}disabled{% endif %}">
+      <a class="page-link" href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ page_obj.paginator.num_pages }}">Última</a>
+    </li>
+  </ul>
+</nav>
+{% endif %}
 {% endblock %}
