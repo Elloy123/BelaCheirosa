@@ -74,6 +74,45 @@ h1, h2, h3, h4, h5, h6,
 .chip-subcat {
   background: #fff7fb;
   border-color: #f5d4e3;
+  font-size: 0.76rem;
+  font-style: italic;
+  color: #a0476a;
+  border-style: dashed;
+}
+
+.chip-subcat:hover,
+.chip-subcat.active {
+  color: #fff;
+  background: var(--rose-dark);
+  border-color: var(--rose-dark);
+  border-style: dashed;
+  font-style: italic;
+}
+
+/* Paginação com cores do site */
+.pagination .page-link {
+  color: var(--rose);
+  border-color: #f1c0d3;
+  background: #fff;
+}
+
+.pagination .page-link:hover,
+.pagination .page-link:focus {
+  color: #fff;
+  background: var(--rose);
+  border-color: var(--rose);
+}
+
+.pagination .page-item.active .page-link {
+  color: #fff;
+  background: var(--rose);
+  border-color: var(--rose-dark);
+}
+
+.pagination .page-item.disabled .page-link {
+  color: #c9a0b4;
+  background: #fff;
+  border-color: #f1c0d3;
 }
 
 .hero-catalogo {
