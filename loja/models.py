@@ -5,7 +5,7 @@ from django.utils import timezone
 
 
 class Categoria(models.Model):
-	nome = models.CharField(max_length=120, unique=True)
+	nome = models.CharField(max_length=120)
 	slug = models.SlugField(max_length=140, unique=True)
 	parent = models.ForeignKey(
 		"self",
@@ -19,6 +19,19 @@ class Categoria(models.Model):
 		ordering = ["parent__nome", "nome"]
 		verbose_name = "Categoria"
 		verbose_name_plural = "Categorias"
+		constraints = [
+			models.UniqueConstraint(
+				models.functions.Lower("nome"),
+				name="uniq_categoria_raiz_nome",
+				condition=models.Q(parent__isnull=True),
+			),
+			models.UniqueConstraint(
+				models.functions.Lower("nome"),
+				"parent",
+				name="uniq_subcategoria_nome_por_pai",
+				condition=models.Q(parent__isnull=False),
+			),
+		]
 
 	def __str__(self):
 		if self.parent:

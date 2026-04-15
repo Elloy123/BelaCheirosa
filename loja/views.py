@@ -45,7 +45,27 @@ from .models import (
 from .pdf_utils import gerar_pdf_venda
 
 
-def _gerar_slug_produto(nome, produto_id=None):
+def _paginas_visiveis(paginator, page_obj, vizinhos=2):
+	"""Retorna lista de números de página e None para reticências."""
+	current = page_obj.number
+	num_pages = paginator.num_pages
+	delta = vizinhos
+	pages = set()
+	pages.add(1)
+	pages.add(num_pages)
+	for i in range(max(1, current - delta), min(num_pages, current + delta) + 1):
+		pages.add(i)
+	result = []
+	prev = None
+	for p in sorted(pages):
+		if prev is not None and p - prev > 1:
+			result.append(None)
+		result.append(p)
+		prev = p
+	return result
+
+
+
 	base = slugify(nome) or "produto"
 	slug = base
 	contador = 1
@@ -116,6 +136,13 @@ def home(request):
 	filtro = request.GET.get("filtro", "padrao")
 	busca = request.GET.get("q", "").strip()
 
+	try:
+		per_page = int(request.GET.get("por_pagina", 25))
+		if per_page < 1:
+			per_page = 25
+	except (ValueError, TypeError):
+		per_page = 25
+
 	base_produtos = Produto.objects.filter(ativo=True).select_related("categoria", "categoria__parent")
 	produtos = base_produtos
 	categoria_ativa = None
@@ -153,15 +180,20 @@ def home(request):
 	else:
 		produtos = produtos.order_by("-criado_em", "nome")
 
-	page_obj = _paginate(request, produtos, per_page=16)
+	paginator = Paginator(produtos, per_page)
+	page_number = request.GET.get("page", 1)
+	page_obj = paginator.get_page(page_number)
 
 	carrinho = Carrinho(request)
 	return render(
 		request,
 		"loja/home.html",
 		{
-			"produtos": page_obj.object_list,
+			"produtos": page_obj,
 			"page_obj": page_obj,
+			"paginator": paginator,
+			"paginas_visiveis": _paginas_visiveis(paginator, page_obj),
+			"per_page": per_page,
 			"categoria_ativa": categoria_ativa,
 			"categoria_pai_ativa": categoria_pai_ativa,
 			"subcategorias_ativas": subcategorias_ativas,
@@ -634,6 +666,13 @@ def lista_produtos(request):
 	q = request.GET.get("q", "").strip()
 	cat = request.GET.get("cat", "").strip()
 
+	try:
+		per_page = int(request.GET.get("por_pagina", 25))
+		if per_page < 1:
+			per_page = 25
+	except (ValueError, TypeError):
+		per_page = 25
+
 	produtos = Produto.objects.select_related("categoria", "categoria__parent").order_by("nome")
 	if q:
 		produtos = produtos.filter(Q(nome__icontains=q) | Q(codigo__icontains=q))
@@ -641,14 +680,19 @@ def lista_produtos(request):
 		produtos = produtos.filter(
 			Q(categoria__slug=cat) | Q(categoria__parent__slug=cat)
 		)
-	page_obj = _paginate(request, produtos, per_page=40)
+	paginator = Paginator(produtos, per_page)
+	page_number = request.GET.get("page", 1)
+	page_obj = paginator.get_page(page_number)
 
 	return render(
 		request,
 		"admin_panel/lista_produtos.html",
 		{
-			"produtos": page_obj.object_list,
+			"produtos": page_obj,
 			"page_obj": page_obj,
+			"paginator": paginator,
+			"paginas_visiveis": _paginas_visiveis(paginator, page_obj),
+			"per_page": per_page,
 			"querystring": _querystring_without_page(request),
 			"q": q,
 			"cat": cat,
@@ -702,12 +746,9 @@ def categoria_rapida_form(request):
 		messages.error(request, "Informe o nome da categoria principal.")
 		return redirect(next_url)
 
-	existente = Categoria.objects.filter(nome__iexact=nome).first()
+	existente = Categoria.objects.filter(parent__isnull=True, nome__iexact=nome).first()
 	if existente:
-		if existente.parent_id:
-			messages.error(request, f"Ja existe uma subcategoria com esse nome: {existente.nome}.")
-		else:
-			messages.info(request, f"Categoria ja existente: {existente.nome}.")
+		messages.info(request, f"Categoria ja existente: {existente.nome}.")
 		return redirect(next_url)
 
 	Categoria.objects.create(nome=nome, slug=_gerar_slug_categoria(nome))
@@ -729,12 +770,9 @@ def subcategoria_rapida_form(request):
 		return redirect(next_url)
 
 	pai = get_object_or_404(Categoria, pk=parent_id, parent__isnull=True)
-	existente = Categoria.objects.filter(nome__iexact=nome).first()
+	existente = Categoria.objects.filter(parent=pai, nome__iexact=nome).first()
 	if existente:
-		if existente.parent_id == pai.id:
-			messages.info(request, f"Subcategoria ja existente em {pai.nome}: {existente.nome}.")
-		else:
-			messages.error(request, f"Ja existe uma categoria com esse nome: {existente.nome}.")
+		messages.info(request, f"Subcategoria ja existente em {pai.nome}: {existente.nome}.")
 		return redirect(next_url)
 
 	Categoria.objects.create(nome=nome, slug=_gerar_slug_categoria(nome), parent=pai)
