@@ -62,10 +62,14 @@
       <a class="page-link" href="?page={{ page_obj.previous_page_number }}&q={{ q }}&cat={{ cat }}&por_pagina={{ per_page }}">&laquo; Anterior</a>
     </li>
     {% endif %}
-    {% for num in paginator.page_range %}
+    {% for num in paginas_visiveis %}
+    {% if num is None %}
+    <li class="page-item disabled"><span class="page-link">&hellip;</span></li>
+    {% else %}
     <li class="page-item {% if page_obj.number == num %}active{% endif %}">
       <a class="page-link" href="?page={{ num }}&q={{ q }}&cat={{ cat }}&por_pagina={{ per_page }}">{{ num }}</a>
     </li>
+    {% endif %}
     {% endfor %}
     {% if page_obj.has_next %}
     <li class="page-item">

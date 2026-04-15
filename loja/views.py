@@ -31,7 +31,27 @@ from .models import (
 from .pdf_utils import gerar_pdf_venda
 
 
-def _gerar_slug_produto(nome, produto_id=None):
+def _paginas_visiveis(paginator, page_obj, vizinhos=2):
+	"""Retorna lista de números de página e None para reticências."""
+	current = page_obj.number
+	num_pages = paginator.num_pages
+	delta = vizinhos
+	pages = set()
+	pages.add(1)
+	pages.add(num_pages)
+	for i in range(max(1, current - delta), min(num_pages, current + delta) + 1):
+		pages.add(i)
+	result = []
+	prev = None
+	for p in sorted(pages):
+		if prev is not None and p - prev > 1:
+			result.append(None)
+		result.append(p)
+		prev = p
+	return result
+
+
+
 	base = slugify(nome) or "produto"
 	slug = base
 	contador = 1
@@ -131,6 +151,7 @@ def home(request):
 			"produtos": page_obj,
 			"page_obj": page_obj,
 			"paginator": paginator,
+			"paginas_visiveis": _paginas_visiveis(paginator, page_obj),
 			"per_page": per_page,
 			"categoria_ativa": categoria_ativa,
 			"categoria_pai_ativa": categoria_pai_ativa,
@@ -537,6 +558,7 @@ def lista_produtos(request):
 			"produtos": page_obj,
 			"page_obj": page_obj,
 			"paginator": paginator,
+			"paginas_visiveis": _paginas_visiveis(paginator, page_obj),
 			"per_page": per_page,
 			"q": q,
 			"cat": cat,
