@@ -12,9 +12,44 @@
   <div class="col-md-4"><div class="alert alert-warning mb-0">Baixo: <strong>{{ qtd_baixo }}</strong></div></div>
   <div class="col-md-4"><div class="alert alert-danger mb-0">Zerado: <strong>{{ qtd_zerado }}</strong></div></div>
 </div>
-<div class="card border-0 shadow-sm"><div class="table-responsive"><table class="table mb-0"><thead><tr><th>Produto</th><th>Estoque</th><th>Mínimo</th><th>Situação</th><th>Valor</th><th></th></tr></thead><tbody>
+<div class="card admin-shell-card"><div class="table-responsive"><table class="table admin-table"><thead><tr><th>Produto</th><th>Estoque</th><th>Mínimo</th><th>Situação</th><th>Valor</th><th></th></tr></thead><tbody>
 {% for r in resultado %}
-<tr><td>{{ r.produto.nome }}</td><td>{{ r.produto.estoque }}</td><td>{{ r.produto.estoque_minimo }}</td><td>{{ r.situacao }}</td><td>R$ {{ r.valor_estoque|floatformat:2 }}</td><td><a href="{% url 'movimentar_estoque' r.produto.id %}">Movimentar</a></td></tr>
+<tr>
+  <td>{{ r.nome }}</td>
+  <td>{{ r.estoque }}</td>
+  <td>{{ r.estoque_minimo }}</td>
+  <td>
+    {% if r.situacao_calc == 'OK' %}
+    <span class="badge rounded-pill badge-soft-ok">{{ r.situacao_calc }}</span>
+    {% elif r.situacao_calc == 'Baixo' %}
+    <span class="badge rounded-pill badge-soft-warning">{{ r.situacao_calc }}</span>
+    {% else %}
+    <span class="badge rounded-pill badge-soft-danger">{{ r.situacao_calc }}</span>
+    {% endif %}
+  </td>
+  <td>R$ {{ r.valor_estoque|floatformat:2 }}</td>
+  <td><a class="admin-muted-link" href="{% url 'movimentar_estoque' r.id %}">Movimentar</a></td>
+</tr>
 {% empty %}<tr><td colspan="6" class="text-center py-4 text-muted">Sem produtos</td></tr>{% endfor %}
 </tbody></table></div></div>
+
+{% if page_obj and page_obj.paginator.num_pages > 1 %}
+<nav class="pagination-wrap" aria-label="Paginação de estoque">
+  <ul class="pagination justify-content-center mb-0">
+    <li class="page-item {% if not page_obj.has_previous %}disabled{% endif %}">
+      <a class="page-link" href="?{% if querystring %}{{ querystring }}&{% endif %}page=1">Primeira</a>
+    </li>
+    <li class="page-item {% if not page_obj.has_previous %}disabled{% endif %}">
+      <a class="page-link" href="?{% if querystring %}{{ querystring }}&{% endif %}page={% if page_obj.has_previous %}{{ page_obj.previous_page_number }}{% else %}1{% endif %}">Anterior</a>
+    </li>
+    <li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+    <li class="page-item {% if not page_obj.has_next %}disabled{% endif %}">
+      <a class="page-link" href="?{% if querystring %}{{ querystring }}&{% endif %}page={% if page_obj.has_next %}{{ page_obj.next_page_number }}{% else %}{{ page_obj.paginator.num_pages }}{% endif %}">Próxima</a>
+    </li>
+    <li class="page-item {% if not page_obj.has_next %}disabled{% endif %}">
+      <a class="page-link" href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ page_obj.paginator.num_pages }}">Última</a>
+    </li>
+  </ul>
+</nav>
+{% endif %}
 {% endblock %}

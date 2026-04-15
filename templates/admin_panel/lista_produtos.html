@@ -29,7 +29,7 @@
 </div>
 <div class="card border-0 shadow-sm">
   <div class="table-responsive">
-    <table class="table mb-0">
+    <table class="table admin-table">
       <thead>
         <tr><th>Produto</th><th>Categoria</th><th>Preço</th><th>Estoque</th><th>Ativo</th><th></th></tr>
       </thead>
@@ -43,8 +43,14 @@
           <td>{% if p.categoria %}{{ p.categoria }}{% else %}-{% endif %}</td>
           <td>R$ {{ p.preco|floatformat:2 }}</td>
           <td>{{ p.estoque }}</td>
-          <td>{% if p.ativo %}Sim{% else %}Não{% endif %}</td>
-          <td class="text-end"><a href="{% url 'produto_editar' p.id %}">Editar</a></td>
+          <td>
+            {% if p.ativo %}
+            <span class="badge rounded-pill badge-soft-ok">Sim</span>
+            {% else %}
+            <span class="badge rounded-pill badge-soft-danger">Não</span>
+            {% endif %}
+          </td>
+          <td class="text-end"><a class="admin-muted-link" href="{% url 'produto_editar' p.id %}">Editar</a></td>
         </tr>
         {% empty %}
         <tr><td colspan="6" class="text-center py-4 text-muted">Sem produtos</td></tr>

@@ -47,15 +47,15 @@ class Produto(models.Model):
 		null=True,
 		blank=True,
 	)
-	codigo = models.CharField(max_length=60, blank=True, default="")
-	nome = models.CharField(max_length=200)
+	codigo = models.CharField(max_length=60, blank=True, default="", db_index=True)
+	nome = models.CharField(max_length=200, db_index=True)
 	slug = models.SlugField(max_length=220, unique=True)
 	descricao = models.TextField(blank=True)
 	custo = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 	preco = models.DecimalField(max_digits=10, decimal_places=2)
 	estoque = models.PositiveIntegerField(default=0)
 	estoque_minimo = models.PositiveIntegerField(default=5)
-	ativo = models.BooleanField(default=True)
+	ativo = models.BooleanField(default=True, db_index=True)
 	vendas = models.PositiveIntegerField(default=0)
 	imagem = models.ImageField(upload_to="produtos/", blank=True, null=True)
 	criado_em = models.DateTimeField(auto_now_add=True)
@@ -126,9 +126,9 @@ class Venda(models.Model):
 		blank=True,
 		related_name="vendas",
 	)
-	data = models.DateTimeField(default=timezone.now)
-	forma_pagamento = models.CharField(max_length=20, choices=FORMA_PAGAMENTO, default="dinheiro")
-	status = models.CharField(max_length=15, choices=STATUS, default="concluida")
+	data = models.DateTimeField(default=timezone.now, db_index=True)
+	forma_pagamento = models.CharField(max_length=20, choices=FORMA_PAGAMENTO, default="dinheiro", db_index=True)
+	status = models.CharField(max_length=15, choices=STATUS, default="concluida", db_index=True)
 	desconto = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 	observacao = models.TextField(blank=True)
 	criado_em = models.DateTimeField(auto_now_add=True)
@@ -212,7 +212,7 @@ class Pedido(models.Model):
 	forma_pagamento = models.CharField(max_length=20, choices=FORMA_PAGAMENTO, default="dinheiro")
 	observacao = models.TextField(blank=True)
 	desconto = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-	status = models.CharField(max_length=15, choices=STATUS, default="pendente")
+	status = models.CharField(max_length=15, choices=STATUS, default="pendente", db_index=True)
 	criado_em = models.DateTimeField(auto_now_add=True)
 
 	class Meta:
@@ -249,8 +249,8 @@ class FiadoConta(models.Model):
 	referencia = models.CharField(max_length=200)
 	valor_total = models.DecimalField(max_digits=10, decimal_places=2)
 	valor_pago = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-	vencimento = models.DateField()
-	status = models.CharField(max_length=10, choices=STATUS, default="pendente")
+	vencimento = models.DateField(db_index=True)
+	status = models.CharField(max_length=10, choices=STATUS, default="pendente", db_index=True)
 	observacao = models.CharField(max_length=300, blank=True)
 	criado_em = models.DateTimeField(auto_now_add=True)
 
@@ -276,14 +276,14 @@ class ContaPagar(models.Model):
 
 	fornecedor = models.CharField(max_length=200)
 	referencia = models.CharField(max_length=220)
-	grupo_referencia = models.CharField(max_length=40, blank=True, default="")
+	grupo_referencia = models.CharField(max_length=40, blank=True, default="", db_index=True)
 	parcela_numero = models.PositiveIntegerField(default=1)
 	parcelas_total = models.PositiveIntegerField(default=1)
 	valor_total = models.DecimalField(max_digits=10, decimal_places=2)
 	valor_pago = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-	vencimento = models.DateField()
-	data_pagamento = models.DateField(null=True, blank=True)
-	status = models.CharField(max_length=10, choices=STATUS, default="pendente")
+	vencimento = models.DateField(db_index=True)
+	data_pagamento = models.DateField(null=True, blank=True, db_index=True)
+	status = models.CharField(max_length=10, choices=STATUS, default="pendente", db_index=True)
 	observacao = models.CharField(max_length=300, blank=True)
 	criado_em = models.DateTimeField(auto_now_add=True)
 

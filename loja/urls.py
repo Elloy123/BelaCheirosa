@@ -38,4 +38,6 @@ urlpatterns = [
     path("painel/clientes/novo/", views.cliente_form, name="cliente_novo"),
     path("painel/clientes/<int:pk>/editar/", views.cliente_form, name="cliente_editar"),
     path("painel/clientes/<int:pk>/", views.cliente_detalhe, name="cliente_detalhe"),
+
+    path("painel/backup/", views.backup_banco, name="backup_banco"),
 ]
