@@ -1,12 +1,12 @@
 # Bela Cheirosa - Loja Django
 
 Sistema comercial com:
-- Catalogo online
+- Catálogo online
 - Carrinho e checkout via WhatsApp
 - Painel comercial (vendas, pedidos, estoque, clientes)
 - Fiado e boletos com parcelas e data real de pagamento
 
-## Deploy rapido no PythonAnywhere
+## Deploy rápido no PythonAnywhere
 
 ### 1) No PythonAnywhere (Bash)
 
@@ -23,7 +23,7 @@ bash pythonanywhere_first_deploy.sh
 nano ~/belacheirosa_web/.env
 ```
 
-Valores minimos:
+Valores mínimos:
 
 ```env
 DJANGO_SECRET_KEY=troque-por-uma-chave-segura
@@ -41,7 +41,7 @@ LOJA_WHATSAPP=5593991512300
 
 ### 4) Clique em Reload
 
-## Atualizacao de codigo
+## Atualização de código
 
 Sempre que fizer push novo no GitHub, no PythonAnywhere rode:
 
