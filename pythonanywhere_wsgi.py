@@ -12,6 +12,15 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+env_path = PROJECT_ROOT / ".env"
+if env_path.exists():
+    try:
+        from dotenv import load_dotenv
+
+        load_dotenv(env_path)
+    except Exception:
+        pass
+
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "belacheirosa_web.settings")
 
 from django.core.wsgi import get_wsgi_application  # noqa: E402
