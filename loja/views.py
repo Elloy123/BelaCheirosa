@@ -1,3 +1,5 @@
+import io
+import sqlite3
 from decimal import Decimal, InvalidOperation
 from datetime import date, timedelta
 from uuid import uuid4
@@ -897,3 +899,21 @@ def conta_pagar_atualizar_pagamento(request, pk):
 
 	messages.success(request, f"Pagamento da parcela {conta.parcela_label} atualizado.")
 	return redirect("lista_contas_pagar")
+
+
+@staff_member_required(login_url="/admin/login/")
+def backup_banco(request):
+	"""Gera e faz download de um backup do banco de dados SQLite."""
+	db_path = settings.DATABASES["default"]["NAME"]
+	buffer = io.BytesIO()
+	conn = sqlite3.connect(str(db_path))
+	try:
+		for linha in conn.iterdump():
+			buffer.write((linha + "\n").encode("utf-8"))
+	finally:
+		conn.close()
+	buffer.seek(0)
+	nome_arquivo = f"backup_belacheirosa_{timezone.now().strftime('%Y%m%d_%H%M%S')}.sql"
+	response = HttpResponse(buffer, content_type="application/octet-stream")
+	response["Content-Disposition"] = f'attachment; filename="{nome_arquivo}"'
+	return response
