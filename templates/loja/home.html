@@ -5,11 +5,27 @@
   <h2 class="h5 text-rose mb-0">Catalogo</h2>
   <div class="d-flex flex-wrap align-items-center gap-2 ordenacao-wrap">
     <span class="small fw-semibold text-muted">Ordenar por:</span>
-    <a class="btn btn-outline-rose btn-sm" href="?filtro=padrao{% if categoria_ativa %}&cat={{ categoria_ativa.slug }}{% endif %}{% if busca %}&q={{ busca|urlencode }}{% endif %}">Novidades</a>
-    <a class="btn btn-outline-rose btn-sm" href="?filtro=mais_vendidos{% if categoria_ativa %}&cat={{ categoria_ativa.slug }}{% endif %}{% if busca %}&q={{ busca|urlencode }}{% endif %}">Mais vendidos</a>
-    <a class="btn btn-outline-rose btn-sm" href="?filtro=mais_baratos{% if categoria_ativa %}&cat={{ categoria_ativa.slug }}{% endif %}{% if busca %}&q={{ busca|urlencode }}{% endif %}">Mais baratos</a>
-    <a class="btn btn-outline-rose btn-sm" href="?filtro=mais_caros{% if categoria_ativa %}&cat={{ categoria_ativa.slug }}{% endif %}{% if busca %}&q={{ busca|urlencode }}{% endif %}">Mais caros</a>
+    <a class="btn btn-outline-rose btn-sm" href="?filtro=padrao{% if categoria_ativa %}&cat={{ categoria_ativa.slug }}{% endif %}{% if busca %}&q={{ busca|urlencode }}{% endif %}&por_pagina={{ per_page }}">Novidades</a>
+    <a class="btn btn-outline-rose btn-sm" href="?filtro=mais_vendidos{% if categoria_ativa %}&cat={{ categoria_ativa.slug }}{% endif %}{% if busca %}&q={{ busca|urlencode }}{% endif %}&por_pagina={{ per_page }}">Mais vendidos</a>
+    <a class="btn btn-outline-rose btn-sm" href="?filtro=mais_baratos{% if categoria_ativa %}&cat={{ categoria_ativa.slug }}{% endif %}{% if busca %}&q={{ busca|urlencode }}{% endif %}&por_pagina={{ per_page }}">Mais baratos</a>
+    <a class="btn btn-outline-rose btn-sm" href="?filtro=mais_caros{% if categoria_ativa %}&cat={{ categoria_ativa.slug }}{% endif %}{% if busca %}&q={{ busca|urlencode }}{% endif %}&por_pagina={{ per_page }}">Mais caros</a>
   </div>
+</div>
+
+<div class="d-flex align-items-center gap-2 mb-3">
+  <span class="small text-muted">Produtos por página:</span>
+  <form method="get" class="d-flex gap-1">
+    {% if categoria_ativa %}<input type="hidden" name="cat" value="{{ categoria_ativa.slug }}">{% endif %}
+    {% if busca %}<input type="hidden" name="q" value="{{ busca }}">{% endif %}
+    <input type="hidden" name="filtro" value="{{ filtro_ativo }}">
+    <select name="por_pagina" class="form-select form-select-sm" style="width:auto;" onchange="this.form.submit()">
+      <option value="12" {% if per_page == 12 %}selected{% endif %}>12</option>
+      <option value="25" {% if per_page == 25 %}selected{% endif %}>25</option>
+      <option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
+      <option value="100" {% if per_page == 100 %}selected{% endif %}>100</option>
+    </select>
+  </form>
+  <span class="small text-muted">— {{ paginator.count }} produto{{ paginator.count|pluralize:"s" }} encontrado{{ paginator.count|pluralize:"s" }}</span>
 </div>
 
 <div class="row g-3">
@@ -48,4 +64,26 @@
   <p>Nenhum produto encontrado.</p>
   {% endfor %}
 </div>
+
+{% if paginator.num_pages > 1 %}
+<nav class="mt-4" aria-label="Paginação de produtos">
+  <ul class="pagination justify-content-center flex-wrap">
+    {% if page_obj.has_previous %}
+    <li class="page-item">
+      <a class="page-link" href="?page={{ page_obj.previous_page_number }}&filtro={{ filtro_ativo }}{% if categoria_ativa %}&cat={{ categoria_ativa.slug }}{% endif %}{% if busca %}&q={{ busca|urlencode }}{% endif %}&por_pagina={{ per_page }}">&laquo; Anterior</a>
+    </li>
+    {% endif %}
+    {% for num in paginator.page_range %}
+    <li class="page-item {% if page_obj.number == num %}active{% endif %}">
+      <a class="page-link" href="?page={{ num }}&filtro={{ filtro_ativo }}{% if categoria_ativa %}&cat={{ categoria_ativa.slug }}{% endif %}{% if busca %}&q={{ busca|urlencode }}{% endif %}&por_pagina={{ per_page }}">{{ num }}</a>
+    </li>
+    {% endfor %}
+    {% if page_obj.has_next %}
+    <li class="page-item">
+      <a class="page-link" href="?page={{ page_obj.next_page_number }}&filtro={{ filtro_ativo }}{% if categoria_ativa %}&cat={{ categoria_ativa.slug }}{% endif %}{% if busca %}&q={{ busca|urlencode }}{% endif %}&por_pagina={{ per_page }}">Próxima &raquo;</a>
+    </li>
+    {% endif %}
+  </ul>
+</nav>
+{% endif %}
 {% endblock %}
