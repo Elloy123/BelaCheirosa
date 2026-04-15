@@ -46,6 +46,11 @@
             {% for cat in categorias_globais %}
             <a class="nav-cat-link {% if categoria_pai_ativa and categoria_pai_ativa.id == cat.id or categoria_ativa and categoria_ativa.id == cat.id %}active{% endif %}" href="{% url 'home' %}?cat={{ cat.slug }}">{{ cat.nome }}</a>
             {% endfor %}
+            {% if subcategorias_ativas %}
+            {% for subcat in subcategorias_ativas %}
+            <a class="nav-cat-link nav-cat-sub {% if categoria_ativa and categoria_ativa.id == subcat.id %}active{% endif %}" href="{% url 'home' %}?cat={{ subcat.slug }}">↳ {{ subcat.nome }}</a>
+            {% endfor %}
+            {% endif %}
           </div>
         </div>
       </div>
@@ -105,7 +110,7 @@
         </div>
       </div>
       <div class="pt-3 text-end small">
-        <a class="link-admin me-3" href="/painel/">Area de Gestao</a>
+        <a class="link-admin me-3" href="/painel/">Área de Gestão</a>
         <a class="link-admin" href="/admin/">Acesso administrativo</a>
       </div>
     </div>

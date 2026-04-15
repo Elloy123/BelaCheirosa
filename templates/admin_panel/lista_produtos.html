@@ -6,7 +6,7 @@
   <div class="col-md-4"><input name="q" value="{{ q }}" class="form-control" placeholder="Buscar nome ou código"></div>
   <div class="col-md-3">
     <select name="cat" class="form-select">
-      <option value="">Todas categorias</option>
+      <option value="">Todas as categorias</option>
       {% for c in categorias_pai %}
       <option value="{{ c.slug }}" {% if cat == c.slug %}selected{% endif %}>{{ c.nome }}</option>
       {% endfor %}

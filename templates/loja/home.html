@@ -2,7 +2,7 @@
 {% block title %}Loja - Bela e Cheirosa{% endblock %}
 {% block content %}
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-  <h2 class="h5 text-rose mb-0">Catalogo</h2>
+  <h2 class="h5 text-rose mb-0">Catálogo</h2>
   <div class="d-flex flex-wrap align-items-center gap-2 ordenacao-wrap">
     <span class="small fw-semibold text-muted">Ordenar por:</span>
     <a class="btn btn-outline-rose btn-sm" href="?filtro=padrao{% if categoria_ativa %}&cat={{ categoria_ativa.slug }}{% endif %}{% if busca %}&q={{ busca|urlencode }}{% endif %}&por_pagina={{ per_page }}">Novidades</a>
@@ -46,7 +46,7 @@
         <h6 class="fw-bold">{{ produto.nome }}</h6>
         <p class="small text-muted mb-2">Estoque: {{ produto.estoque }}</p>
         <p class="fw-bold fs-5 text-rose mt-auto">R$ {{ produto.preco|floatformat:2 }}</p>
-        <a class="btn btn-success btn-sm w-100" target="_blank" href="https://wa.me/{{ whatsapp_numero }}?text=Ola!%20Gostei%20do%20produto:%20{{ produto.nome|urlencode }}%20(R$%20{{ produto.preco|floatformat:2|urlencode }})">Comprar no WhatsApp</a>
+        <a class="btn btn-success btn-sm w-100" target="_blank" href="https://wa.me/{{ whatsapp_numero }}?text=Ol%C3%A1!%20Gostei%20do%20produto:%20{{ produto.nome|urlencode }}%20(R$%20{{ produto.preco|floatformat:2|urlencode }})">Comprar no WhatsApp</a>
         <form method="post" action="{% url 'carrinho_adicionar' produto.id %}" class="mt-2">
           {% csrf_token %}
           <input type="hidden" name="next" value="{{ request.get_full_path }}">
