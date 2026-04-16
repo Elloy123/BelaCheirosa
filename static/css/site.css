@@ -182,6 +182,29 @@ h1, h2, h3, h4, h5, h6,
   padding: 0.35rem 0.5rem;
 }
 
+.filtros-compactos .btn-filtro {
+  font-size: 0.74rem;
+  padding: 0.19rem 0.45rem;
+  line-height: 1.2;
+}
+
+.filtros-compactos span.small {
+  font-size: 0.74rem !important;
+}
+
+.home-per-page .compact-select {
+  font-size: 0.76rem;
+  padding-top: 0.16rem;
+  padding-bottom: 0.16rem;
+  min-height: 1.8rem;
+}
+
+.home-subcats-mobile .chip-subcat {
+  margin-left: 0;
+  font-size: 0.7rem;
+  padding: 0.18rem 0.48rem;
+}
+
 .hero-badge {
   display: inline-block;
   border-radius: 999px;
@@ -454,5 +477,28 @@ h1, h2, h3, h4, h5, h6,
 
   .subnav-catalogo {
     display: none;
+  }
+
+  .ordenacao-wrap.filtros-compactos {
+    width: 100%;
+    gap: 0.35rem !important;
+    padding: 0.32rem 0.4rem;
+  }
+
+  .filtros-compactos .btn-filtro {
+    font-size: 0.7rem;
+    padding: 0.14rem 0.38rem;
+  }
+
+  .home-per-page {
+    flex-wrap: wrap;
+    gap: 0.4rem !important;
+  }
+
+  .home-per-page .compact-select {
+    font-size: 0.72rem;
+    min-height: 1.65rem;
+    padding-top: 0.12rem;
+    padding-bottom: 0.12rem;
   }
 }
