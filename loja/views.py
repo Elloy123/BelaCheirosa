@@ -65,6 +65,18 @@ def _paginas_visiveis(paginator, page_obj, vizinhos=2):
 		prev = p
 	return result
 
+def _gerar_slug_produto(nome, produto_id=None):
+	base = slugify(nome) or "produto"
+	slug = base
+	contador = 1
+	while True:
+		query = Produto.objects.filter(slug=slug)
+		if produto_id:
+			query = query.exclude(pk=produto_id)
+		if not query.exists():
+			return slug
+		contador += 1
+		slug = f"{base}-{contador}"
 
 
 	base = slugify(nome) or "produto"
