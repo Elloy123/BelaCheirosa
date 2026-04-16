@@ -158,6 +158,15 @@ h1, h2, h3, h4, h5, h6,
   color: #ecfeff;
 }
 
+.mobile-nav-cats {
+  border-radius: 10px;
+}
+
+.mobile-nav-cats .mobile-nav-list .nav-cat-link {
+  display: block;
+  text-decoration: none;
+}
+
 .hero-catalogo {
   background: linear-gradient(135deg, #7a103d, #d81b60 58%, #f06292);
   color: #fff;
@@ -415,20 +424,32 @@ h1, h2, h3, h4, h5, h6,
     box-shadow: 0 0 0 0.18rem rgba(255, 255, 255, 0.35);
   }
 
-  .nav-cat-link {
+  .mobile-nav-cats .mobile-nav-list .nav-cat-link {
     border: 1px solid rgba(255, 255, 255, 0.15);
     background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.95);
+    text-decoration: none;
+    font-weight: 600;
   }
 
-  .nav-cat-link:hover,
-  .nav-cat-link.active {
+  .mobile-nav-cats .mobile-nav-list .nav-cat-link:hover,
+  .mobile-nav-cats .mobile-nav-list .nav-cat-link.active {
     background: rgba(255, 255, 255, 0.24);
     border-color: rgba(255, 255, 255, 0.35);
+    color: #ffffff;
   }
 
-  .nav-cat-sub {
+  .mobile-nav-cats .mobile-nav-list .nav-cat-sub {
     margin-left: 0.2rem;
     border-left: 2px solid rgba(255, 255, 255, 0.2);
+    color: rgba(255, 237, 245, 0.92);
+  }
+
+  .mobile-nav-cats .mobile-nav-list .nav-cat-sub:hover,
+  .mobile-nav-cats .mobile-nav-list .nav-cat-sub.active {
+    background: rgba(11, 107, 111, 0.4);
+    border-left-color: rgba(161, 244, 248, 0.85);
+    color: #ecfeff;
   }
 
   .subnav-catalogo {
