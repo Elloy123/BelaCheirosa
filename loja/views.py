@@ -10,6 +10,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.admin.views.decorators import staff_member_required
 from django.conf import settings
 from django.core.paginator import Paginator
+from django.db import IntegrityError
 from django.db.models import (
 	Case,
 	CharField,
@@ -104,6 +105,12 @@ def _status_por_pagamento(valor_total, valor_pago):
 	if valor_pago < valor_total:
 		return "parcial"
 	return "pago"
+
+
+def _parse_decimal_input(value, fallback="0"):
+	"""Converte string decimal aceitando virgula ou ponto."""
+	text = str(value if value not in (None, "") else fallback).strip()
+	return Decimal(text.replace(",", "."))
 
 
 def _querystring_without_page(request):
@@ -751,7 +758,12 @@ def categoria_rapida_form(request):
 		messages.info(request, f"Categoria ja existente: {existente.nome}.")
 		return redirect(next_url)
 
-	Categoria.objects.create(nome=nome, slug=_gerar_slug_categoria(nome))
+	try:
+		Categoria.objects.create(nome=nome, slug=_gerar_slug_categoria(nome))
+	except IntegrityError:
+		messages.error(request, "Nao foi possivel criar a categoria. Verifique se ela ja existe.")
+		return redirect(next_url)
+
 	messages.success(request, "Categoria principal criada com sucesso.")
 	return redirect(next_url)
 
@@ -775,7 +787,12 @@ def subcategoria_rapida_form(request):
 		messages.info(request, f"Subcategoria ja existente em {pai.nome}: {existente.nome}.")
 		return redirect(next_url)
 
-	Categoria.objects.create(nome=nome, slug=_gerar_slug_categoria(nome), parent=pai)
+	try:
+		Categoria.objects.create(nome=nome, slug=_gerar_slug_categoria(nome), parent=pai)
+	except IntegrityError:
+		messages.error(request, "Nao foi possivel criar a subcategoria. Verifique os dados informados.")
+		return redirect(next_url)
+
 	messages.success(request, "Subcategoria criada com sucesso.")
 	return redirect(next_url)
 
@@ -787,7 +804,11 @@ def movimentar_estoque(request, pk):
 
 	if request.method == "POST":
 		tipo = request.POST.get("tipo")
-		quantidade = int(request.POST.get("quantidade", "0") or "0")
+		try:
+			quantidade = int(request.POST.get("quantidade", "0") or "0")
+		except ValueError:
+			messages.error(request, "Quantidade invalida.")
+			return redirect("movimentar_estoque", pk=produto.pk)
 		observacao = request.POST.get("observacao", "").strip()
 		if quantidade > 0 and tipo in {"entrada", "saida", "ajuste"}:
 			MovimentacaoEstoque.objects.create(
@@ -885,13 +906,26 @@ def lista_fiados(request):
 @staff_member_required(login_url="/admin/login/")
 def fiado_form(request):
 	if request.method == "POST":
-		cliente = get_object_or_404(Cliente, pk=request.POST.get("cliente_id"))
+		cliente_id = request.POST.get("cliente_id")
+		if not cliente_id:
+			messages.error(request, "Selecione um cliente.")
+			return redirect("fiado_novo")
+
+		try:
+			cliente = get_object_or_404(Cliente, pk=cliente_id)
+			valor_total = _parse_decimal_input(request.POST.get("valor_total", "0"), "0")
+			valor_pago = _parse_decimal_input(request.POST.get("valor_pago", "0"), "0")
+			vencimento = date.fromisoformat(request.POST.get("vencimento", ""))
+		except (InvalidOperation, ValueError):
+			messages.error(request, "Dados invalidos no cadastro de fiado. Revise valores e vencimento.")
+			return redirect("fiado_novo")
+
 		FiadoConta.objects.create(
 			cliente=cliente,
 			referencia=request.POST.get("referencia", "").strip(),
-			valor_total=Decimal(request.POST.get("valor_total", "0") or "0"),
-			valor_pago=Decimal(request.POST.get("valor_pago", "0") or "0"),
-			vencimento=request.POST.get("vencimento"),
+			valor_total=valor_total,
+			valor_pago=valor_pago,
+			vencimento=vencimento,
 			status=request.POST.get("status", "pendente"),
 			observacao=request.POST.get("observacao", "").strip(),
 		)
@@ -957,12 +991,16 @@ def conta_pagar_form(request):
 		fornecedor = request.POST.get("fornecedor", "").strip()
 		referencia = request.POST.get("referencia", "").strip()
 		try:
-			valor_total = Decimal(request.POST.get("valor_total", "0") or "0")
-			valor_pago = Decimal(request.POST.get("valor_pago", "0") or "0")
+			valor_total = _parse_decimal_input(request.POST.get("valor_total", "0"), "0")
+			valor_pago = _parse_decimal_input(request.POST.get("valor_pago", "0"), "0")
 		except InvalidOperation:
 			messages.error(request, "Valores invalidos para o boleto.")
 			return redirect("conta_pagar_novo")
-		vencimento = date.fromisoformat(request.POST.get("vencimento"))
+		try:
+			vencimento = date.fromisoformat(request.POST.get("vencimento", ""))
+		except ValueError:
+			messages.error(request, "Data de vencimento invalida.")
+			return redirect("conta_pagar_novo")
 		data_pagamento = request.POST.get("data_pagamento") or None
 		observacao = request.POST.get("observacao", "").strip()
 
