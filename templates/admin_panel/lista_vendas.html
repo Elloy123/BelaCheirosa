@@ -321,54 +321,54 @@
       return (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
     }
 
-    // Distância de Levenshtein simplificada (apenas para palavras curtas)
-    function levenshtein(a, b){
-      if(a.length > 12 || b.length > 12) return 99; // pula palavras muito longas
-      const m = a.length, n = b.length;
-      const dp = Array.from({length: m+1}, (_, i) => Array.from({length: n+1}, (_, j) => i===0 ? j : j===0 ? i : 0));
-      for(let i=1;i<=m;i++) for(let j=1;j<=n;j++)
-        dp[i][j] = a[i-1]===b[j-1] ? dp[i-1][j-1] : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
-      return dp[m][n];
-    }
-
-    // Verifica se uma palavra bate com algum trecho do texto (com tolerância)
-    function wordMatches(word, text){
-      if(!word) return true;
-      if(text.includes(word)) return true; // exato
-      // Tolerância: 1 erro para palavras de 5+ letras, 2 erros para 7+ letras
-      const maxDist = word.length >= 7 ? 2 : word.length >= 5 ? 1 : 0;
-      if(maxDist === 0) return false;
-      // Verifica contra cada palavra do texto
-      const textWords = text.split(/\s+/);
-      return textWords.some(tw => {
-        // Também testa substrings do texto do mesmo tamanho
-        for(let start=0; start <= text.length - word.length + maxDist; start++){
-          const slice = text.substr(start, word.length + 1);
-          if(levenshtein(word, slice) <= maxDist) return true;
-          const slice2 = text.substr(start, word.length);
-          if(levenshtein(word, slice2) <= maxDist) return true;
-        }
-        return levenshtein(word, tw) <= maxDist;
-      });
-    }
+    // Pré-processar todos os cards uma única vez (evita reprocessar no DOM a cada tecla)
+    const todosCards = Array.from(document.querySelectorAll('.produto-card')).map(el => ({
+      el,
+      nome: norm(el.dataset.nome),
+      codigo: norm(el.dataset.codigo||'')
+    }));
 
     function filtrarProdutos(q){
-      const words = norm(q).split(/\s+/).filter(w=>w.length>0);
+      const words = norm(q).split(/\s+/).filter(w => w.length > 0);
       let totalVisiveis = 0;
-      document.querySelectorAll('.produto-card').forEach(el=>{
-        const nomeNorm = norm(el.dataset.nome);
-        const codigoNorm = norm(el.dataset.codigo||'');
+
+      todosCards.forEach(({el, nome, codigo}) => {
+        let bate;
         if(!words.length){
-          el.style.display = '';
-          totalVisiveis++;
-          return;
+          bate = true;
+        } else {
+          // Fase 1: busca exata por substring (rápida)
+          bate = words.every(w => nome.includes(w) || codigo.includes(w));
+
+          // Fase 2: só se não achou e a palavra tem 4+ letras, tenta fuzzy leve
+          // (compara só contra palavras do nome, não contra substrings)
+          if(!bate){
+            const nomeWords = nome.split(/\s+/);
+            bate = words.every(w => {
+              if(w.length < 4) return false;
+              const maxDist = w.length >= 6 ? 2 : 1;
+              return nomeWords.some(nw => {
+                if(Math.abs(nw.length - w.length) > maxDist) return false;
+                // Levenshtein apenas entre palavras de tamanho similar
+                let prev = Array.from({length: w.length+1}, (_, i) => i);
+                for(let i=1; i<=nw.length; i++){
+                  const curr = [i];
+                  for(let j=1; j<=w.length; j++){
+                    curr[j] = nw[i-1]===w[j-1] ? prev[j-1] : 1 + Math.min(prev[j], curr[j-1], prev[j-1]);
+                  }
+                  prev = curr;
+                }
+                return prev[w.length] <= maxDist;
+              });
+            });
+          }
         }
-        // Todas as palavras precisam bater (nome OU código)
-        const bate = words.every(w => wordMatches(w, nomeNorm) || codigoNorm.includes(w));
+
         el.style.display = bate ? '' : 'none';
         if(bate) totalVisiveis++;
       });
-      // Mostrar contador de resultados
+
+      // Contador de resultados
       let contador = document.getElementById('pdvBuscaContador');
       if(!contador){
         contador = document.createElement('small');
@@ -379,10 +379,27 @@
       contador.textContent = q ? `${totalVisiveis} resultado(s)` : '';
     }
 
+    // Debounce: espera 200ms após parar de digitar antes de aplicar fuzzy
+    let debounceTimer;
     document.getElementById('pdvBusca').addEventListener('input', function(){
-      filtrarProdutos(this.value);
+      const val = this.value;
       const btnLimpar = document.getElementById('pdvBuscaLimpar');
-      if(btnLimpar) btnLimpar.classList.toggle('d-none', !this.value);
+      if(btnLimpar) btnLimpar.classList.toggle('d-none', !val);
+
+      // Busca exata imediata (sem esperar)
+      clearTimeout(debounceTimer);
+      const q = norm(val);
+      const words = q.split(/\s+/).filter(w => w.length > 0);
+      const temExato = words.length > 0 && todosCards.some(({nome, codigo}) =>
+        words.every(w => nome.includes(w) || codigo.includes(w))
+      );
+
+      if(temExato || !val){
+        filtrarProdutos(val);
+      } else {
+        // Busca exata falhou → debounce antes do fuzzy (evita lentidão ao digitar)
+        debounceTimer = setTimeout(() => filtrarProdutos(val), 250);
+      }
     });
 
     // Botão limpar busca
