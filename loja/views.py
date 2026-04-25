@@ -1432,6 +1432,7 @@ def conta_pagar_atualizar_pagamento(request, pk):
 		return redirect("lista_contas_pagar")
 
 	conta = get_object_or_404(ContaPagar, pk=pk)
+	ja_estava_pago = conta.status == "pago"
 	data_pagamento_raw = request.POST.get("data_pagamento", "").strip()
 	if data_pagamento_raw:
 		try:
@@ -1447,7 +1448,10 @@ def conta_pagar_atualizar_pagamento(request, pk):
 	conta.status = _status_por_pagamento(conta.valor_total, conta.valor_pago)
 	conta.save(update_fields=["valor_pago", "data_pagamento", "status"])
 
-	messages.success(request, f"Parcela {conta.parcela_label} marcada como paga.")
+	if ja_estava_pago:
+		messages.success(request, f"Data de pagamento da parcela {conta.parcela_label} atualizada.")
+	else:
+		messages.success(request, f"Parcela {conta.parcela_label} marcada como paga.")
 	return redirect("lista_contas_pagar")
 
 

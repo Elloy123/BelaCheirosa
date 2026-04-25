@@ -56,7 +56,7 @@
     <form method="post" action="{% url 'conta_pagar_atualizar_pagamento' c.id %}" class="d-flex gap-1 mb-1">
       {% csrf_token %}
       <input type="date" name="data_pagamento" class="form-control form-control-sm" value="{% if c.data_pagamento %}{{ c.data_pagamento|date:'Y-m-d' }}{% endif %}" style="min-width:145px">
-      <button class="btn btn-sm btn-rose">Pagar</button>
+      <button class="btn btn-sm {% if c.status == 'pago' %}btn-outline-primary{% else %}btn-rose{% endif %}">{% if c.status == 'pago' %}Editar data{% else %}Pagar{% endif %}</button>
     </form>
     <form method="post" action="{% url 'conta_pagar_excluir' c.id %}" onsubmit="return confirm('Excluir esta parcela do boleto?');">
       {% csrf_token %}
