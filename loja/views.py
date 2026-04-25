@@ -1343,18 +1343,19 @@ def conta_pagar_form(request):
 			return redirect("conta_pagar_novo")
 
 		grupo = uuid4().hex[:12]
-		for i in range(parcelas):
+		valores_parcelas = _dividir_em_parcelas(valor_total, parcelas)
+		for i, valor_parcela in enumerate(valores_parcelas):
 			vencimento_parcela = _add_months(vencimento, i)
 			parcela_ja_paga = i < parcelas_pagas
-			valor_pago_parcela = valor_total if parcela_ja_paga else Decimal("0")
-			status_parcela = _status_por_pagamento(valor_total, valor_pago_parcela)
+			valor_pago_parcela = valor_parcela if parcela_ja_paga else Decimal("0")
+			status_parcela = _status_por_pagamento(valor_parcela, valor_pago_parcela)
 			ContaPagar.objects.create(
 				fornecedor=fornecedor,
 				referencia=referencia,
 				grupo_referencia=grupo,
 				parcela_numero=i + 1,
 				parcelas_total=parcelas,
-				valor_total=valor_total,
+				valor_total=valor_parcela,
 				valor_pago=valor_pago_parcela,
 				vencimento=vencimento_parcela,
 				data_pagamento=data_pagamento if parcela_ja_paga else None,
@@ -1432,21 +1433,45 @@ def conta_pagar_atualizar_pagamento(request, pk):
 		return redirect("lista_contas_pagar")
 
 	conta = get_object_or_404(ContaPagar, pk=pk)
-	try:
-		valor_pago = Decimal(request.POST.get("valor_pago", str(conta.valor_pago)) or str(conta.valor_pago))
-	except InvalidOperation:
-		messages.error(request, "Valor pago invalido.")
-		return redirect("lista_contas_pagar")
-	if valor_pago < 0:
-		valor_pago = Decimal("0")
+	data_pagamento_raw = request.POST.get("data_pagamento", "").strip()
+	if data_pagamento_raw:
+		try:
+			data_pagamento = date.fromisoformat(data_pagamento_raw)
+		except ValueError:
+			messages.error(request, "Data de pagamento invalida.")
+			return redirect("lista_contas_pagar")
+	else:
+		data_pagamento = date.today()
 
-	conta.valor_pago = valor_pago
-	conta.data_pagamento = request.POST.get("data_pagamento") or None
+	conta.valor_pago = conta.valor_total
+	conta.data_pagamento = data_pagamento
 	conta.status = _status_por_pagamento(conta.valor_total, conta.valor_pago)
 	conta.save(update_fields=["valor_pago", "data_pagamento", "status"])
 
-	messages.success(request, f"Pagamento da parcela {conta.parcela_label} atualizado.")
+	messages.success(request, f"Parcela {conta.parcela_label} marcada como paga.")
 	return redirect("lista_contas_pagar")
+
+
+@staff_member_required(login_url="/admin/login/")
+def conta_pagar_excluir(request, pk):
+	if request.method != "POST":
+		return redirect("lista_contas_pagar")
+
+	conta = get_object_or_404(ContaPagar, pk=pk)
+	conta.delete()
+	messages.success(request, "Parcela de boleto excluida.")
+	return redirect("lista_contas_pagar")
+
+
+@staff_member_required(login_url="/admin/login/")
+def fiado_excluir(request, pk):
+	if request.method != "POST":
+		return redirect("lista_fiados")
+
+	registro = get_object_or_404(FiadoConta, pk=pk)
+	registro.delete()
+	messages.success(request, "Registro de fiado excluido.")
+	return redirect("lista_fiados")
 
 
 @staff_member_required(login_url="/admin/login/")

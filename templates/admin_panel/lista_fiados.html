@@ -59,6 +59,10 @@
             {% else %}
             <span class="text-muted small">Em dia</span>
             {% endif %}
+            <form method="post" action="{% url 'fiado_excluir' f.id %}" class="mt-2" onsubmit="return confirm('Excluir este registro de fiado?');">
+              {% csrf_token %}
+              <button class="btn btn-sm btn-outline-danger">Excluir</button>
+            </form>
           </td>
         </tr>
         {% endfor %}
