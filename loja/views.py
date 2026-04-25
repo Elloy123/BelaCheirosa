@@ -1308,7 +1308,6 @@ def conta_pagar_form(request):
 		referencia = request.POST.get("referencia", "").strip()
 		try:
 			valor_total = _parse_decimal_input(request.POST.get("valor_total", "0"), "0")
-			valor_pago = _parse_decimal_input(request.POST.get("valor_pago", "0"), "0")
 		except InvalidOperation:
 			messages.error(request, "Valores invalidos para o boleto.")
 			return redirect("conta_pagar_novo")
@@ -1317,7 +1316,14 @@ def conta_pagar_form(request):
 		except ValueError:
 			messages.error(request, "Data de vencimento invalida.")
 			return redirect("conta_pagar_novo")
-		data_pagamento = request.POST.get("data_pagamento") or None
+		data_pagamento_raw = request.POST.get("data_pagamento", "").strip()
+		data_pagamento = None
+		if data_pagamento_raw:
+			try:
+				data_pagamento = date.fromisoformat(data_pagamento_raw)
+			except ValueError:
+				messages.error(request, "Data de pagamento invalida.")
+				return redirect("conta_pagar_novo")
 		observacao = request.POST.get("observacao", "").strip()
 
 		try:
@@ -1326,10 +1332,21 @@ def conta_pagar_form(request):
 			parcelas = 1
 		parcelas = max(1, parcelas)
 
+		try:
+			parcelas_pagas = int(request.POST.get("parcelas_pagas", "0") or "0")
+		except ValueError:
+			parcelas_pagas = 0
+		parcelas_pagas = max(0, min(parcelas_pagas, parcelas))
+
+		if parcelas_pagas > 0 and not data_pagamento:
+			messages.error(request, "Informe a data do pagamento quando houver parcelas pagas.")
+			return redirect("conta_pagar_novo")
+
 		grupo = uuid4().hex[:12]
 		for i in range(parcelas):
 			vencimento_parcela = _add_months(vencimento, i)
-			valor_pago_parcela = valor_pago if i == 0 else Decimal("0")
+			parcela_ja_paga = i < parcelas_pagas
+			valor_pago_parcela = valor_total if parcela_ja_paga else Decimal("0")
 			status_parcela = _status_por_pagamento(valor_total, valor_pago_parcela)
 			ContaPagar.objects.create(
 				fornecedor=fornecedor,
@@ -1340,7 +1357,7 @@ def conta_pagar_form(request):
 				valor_total=valor_total,
 				valor_pago=valor_pago_parcela,
 				vencimento=vencimento_parcela,
-				data_pagamento=data_pagamento if i == 0 else None,
+				data_pagamento=data_pagamento if parcela_ja_paga else None,
 				status=status_parcela,
 				observacao=observacao,
 			)
