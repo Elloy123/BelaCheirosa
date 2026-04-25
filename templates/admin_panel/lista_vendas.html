@@ -1,57 +1,312 @@
 {% extends 'admin_panel/base.html' %}
 {% block title %}Vendas{% endblock %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h1 class="h4 text-rose mb-0">Vendas</h1>
-  <a class="btn btn-rose" href="{% url 'venda_nova' %}">Adicionar venda</a>
-</div>
-<form class="row g-2 mb-3">
-  <div class="col-md-4"><input name="q" value="{{ q }}" class="form-control" placeholder="Cliente ou nº da venda"></div>
-  <div class="col-md-3"><select name="status" class="form-select"><option value="">Todos status</option>{% for v,l in status_choices %}<option value="{{ v }}" {% if status == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
-  <div class="col-md-3"><select name="forma" class="form-select"><option value="">Todos pagamentos</option>{% for v,l in forma_choices %}<option value="{{ v }}" {% if forma == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
-  <div class="col-md-2"><button class="btn btn-rose w-100">Filtrar</button></div>
-</form>
-<div class="alert alert-light border">Total filtrado: <strong>R$ {{ total_filtrado|floatformat:2 }}</strong></div>
-<div class="card admin-shell-card"><div class="table-responsive"><table class="table admin-table"><thead><tr><th>#</th><th>Data</th><th>Cliente</th><th>Itens</th><th>Pagamento</th><th>Status</th><th>Total</th><th></th></tr></thead><tbody>
-{% for v in vendas %}
-<tr>
-  <td>#{{ v.id }}</td>
-  <td>{{ v.data|date:'d/m/Y H:i' }}</td>
-  <td>{{ v.cliente.nome|default:'Consumidor Final' }}</td>
-  <td>{{ v.itens.count }}</td>
-  <td>{{ v.get_forma_pagamento_display }}</td>
-  <td>
-    {% if v.status == 'concluida' %}
-    <span class="badge rounded-pill badge-soft-ok">{{ v.get_status_display }}</span>
-    {% elif v.status == 'pendente' %}
-    <span class="badge rounded-pill badge-soft-warning">{{ v.get_status_display }}</span>
-    {% else %}
-    <span class="badge rounded-pill badge-soft-danger">{{ v.get_status_display }}</span>
-    {% endif %}
-  </td>
-  <td>R$ {{ v.total|floatformat:2 }}</td>
-  <td><a class="admin-muted-link" href="{% url 'venda_detalhe' v.id %}">Detalhe</a></td>
-</tr>
-{% empty %}<tr><td colspan="8" class="text-center text-muted py-4">Sem vendas</td></tr>{% endfor %}
-</tbody></table></div></div>
 
-{% if page_obj and page_obj.paginator.num_pages > 1 %}
-<nav class="pagination-wrap" aria-label="Paginação de vendas">
-  <ul class="pagination justify-content-center mb-0">
-    <li class="page-item {% if not page_obj.has_previous %}disabled{% endif %}">
-      <a class="page-link" href="?{% if querystring %}{{ querystring }}&{% endif %}page=1">Primeira</a>
-    </li>
-    <li class="page-item {% if not page_obj.has_previous %}disabled{% endif %}">
-      <a class="page-link" href="?{% if querystring %}{{ querystring }}&{% endif %}page={% if page_obj.has_previous %}{{ page_obj.previous_page_number }}{% else %}1{% endif %}">Anterior</a>
-    </li>
-    <li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
-    <li class="page-item {% if not page_obj.has_next %}disabled{% endif %}">
-      <a class="page-link" href="?{% if querystring %}{{ querystring }}&{% endif %}page={% if page_obj.has_next %}{{ page_obj.next_page_number }}{% else %}{{ page_obj.paginator.num_pages }}{% endif %}">Próxima</a>
-    </li>
-    <li class="page-item {% if not page_obj.has_next %}disabled{% endif %}">
-      <a class="page-link" href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ page_obj.paginator.num_pages }}">Última</a>
-    </li>
-  </ul>
-</nav>
-{% endif %}
+<h1 class="h4 text-rose mb-3">Vendas</h1>
+
+<!-- Abas -->
+<ul class="nav nav-tabs mb-0" id="vendasTabs" role="tablist">
+  <li class="nav-item" role="presentation">
+    <button class="nav-link {% if not aba_pdv %}active{% endif %}" id="tab-historico" data-bs-toggle="tab" data-bs-target="#painel-historico" type="button" role="tab">
+      📋 Histórico de vendas
+    </button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link {% if aba_pdv %}active{% endif %}" id="tab-pdv" data-bs-toggle="tab" data-bs-target="#painel-pdv" type="button" role="tab">
+      🛒 PDV – Nova venda
+    </button>
+  </li>
+</ul>
+
+<div class="tab-content border border-top-0 rounded-bottom p-3 bg-white shadow-sm">
+
+  <!-- ================= ABA HISTÓRICO ================= -->
+  <div class="tab-pane fade {% if not aba_pdv %}show active{% endif %}" id="painel-historico" role="tabpanel">
+    <form class="row g-2 mb-3 mt-1">
+      <div class="col-md-4"><input name="q" value="{{ q }}" class="form-control" placeholder="Cliente ou nº da venda"></div>
+      <div class="col-md-3"><select name="status" class="form-select"><option value="">Todos status</option>{% for v,l in status_choices %}<option value="{{ v }}" {% if status == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+      <div class="col-md-3"><select name="forma" class="form-select"><option value="">Todos pagamentos</option>{% for v,l in forma_choices %}<option value="{{ v }}" {% if forma == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+      <div class="col-md-2"><button class="btn btn-rose w-100">Filtrar</button></div>
+    </form>
+    <div class="alert alert-light border mb-3">Total filtrado: <strong>R$ {{ total_filtrado|floatformat:2 }}</strong></div>
+    <div class="card admin-shell-card"><div class="table-responsive"><table class="table admin-table"><thead><tr><th>#</th><th>Data</th><th>Cliente</th><th>Itens</th><th>Pagamento</th><th>Status</th><th>Total</th><th></th></tr></thead><tbody>
+    {% for v in vendas %}
+    <tr>
+      <td>#{{ v.id }}</td>
+      <td>{{ v.data|date:'d/m/Y H:i' }}</td>
+      <td>{{ v.cliente.nome|default:'Consumidor Final' }}</td>
+      <td>{{ v.itens.count }}</td>
+      <td>{{ v.get_forma_pagamento_display }}</td>
+      <td>
+        {% if v.status == 'concluida' %}<span class="badge rounded-pill badge-soft-ok">{{ v.get_status_display }}</span>
+        {% elif v.status == 'pendente' %}<span class="badge rounded-pill badge-soft-warning">{{ v.get_status_display }}</span>
+        {% else %}<span class="badge rounded-pill badge-soft-danger">{{ v.get_status_display }}</span>{% endif %}
+      </td>
+      <td>R$ {{ v.total|floatformat:2 }}</td>
+      <td><a class="admin-muted-link" href="{% url 'venda_detalhe' v.id %}">Detalhe</a></td>
+    </tr>
+    {% empty %}<tr><td colspan="8" class="text-center text-muted py-4">Sem vendas</td></tr>{% endfor %}
+    </tbody></table></div></div>
+    {% if page_obj and page_obj.paginator.num_pages > 1 %}
+    <nav class="pagination-wrap mt-3" aria-label="Paginação de vendas">
+      <ul class="pagination justify-content-center mb-0">
+        <li class="page-item {% if not page_obj.has_previous %}disabled{% endif %}"><a class="page-link" href="?{% if querystring %}{{ querystring }}&{% endif %}page=1">Primeira</a></li>
+        <li class="page-item {% if not page_obj.has_previous %}disabled{% endif %}"><a class="page-link" href="?{% if querystring %}{{ querystring }}&{% endif %}page={% if page_obj.has_previous %}{{ page_obj.previous_page_number }}{% else %}1{% endif %}">Anterior</a></li>
+        <li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+        <li class="page-item {% if not page_obj.has_next %}disabled{% endif %}"><a class="page-link" href="?{% if querystring %}{{ querystring }}&{% endif %}page={% if page_obj.has_next %}{{ page_obj.next_page_number }}{% else %}{{ page_obj.paginator.num_pages }}{% endif %}">Próxima</a></li>
+        <li class="page-item {% if not page_obj.has_next %}disabled{% endif %}"><a class="page-link" href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ page_obj.paginator.num_pages }}">Última</a></li>
+      </ul>
+    </nav>
+    {% endif %}
+  </div><!-- /aba histórico -->
+
+  <!-- ================= ABA PDV ================= -->
+  <div class="tab-pane fade {% if aba_pdv %}show active{% endif %}" id="painel-pdv" role="tabpanel">
+    <form id="pdvForm" method="post" action="{% url 'venda_nova' %}" autocomplete="off">
+      {% csrf_token %}
+      <div class="row g-3 align-items-start">
+
+        <!-- CATÁLOGO -->
+        <div class="col-lg-7">
+          <div class="card admin-shell-card">
+            <div class="card-header bg-white pb-2">
+              <input id="pdvBusca" type="text" class="form-control" placeholder="🔍 Buscar produto por nome ou código...">
+            </div>
+            <div class="card-body p-2" style="max-height:60vh;overflow-y:auto;">
+              <div class="row g-2" id="pdvProdutos">
+                {% for p in produtos %}
+                <div class="col-6 col-md-4 produto-card"
+                     data-id="{{ p.id }}"
+                     data-nome="{{ p.nome|lower }}"
+                     data-codigo="{{ p.codigo|lower }}"
+                     data-estoque="{{ p.estoque }}"
+                     data-preco="{{ p.preco }}">
+                  <div class="card h-100 border {% if p.estoque <= 0 %}border-secondary opacity-50{% else %}border-light{% endif %} shadow-none">
+                    <div class="card-body p-2 d-flex flex-column">
+                      <div class="fw-semibold small lh-sm mb-1" style="min-height:2.4em;">{{ p.nome }}</div>
+                      <div class="text-rose fw-bold">R$ {{ p.preco|floatformat:2 }}</div>
+                      <div class="text-muted" style="font-size:.75rem;">Estoque: {{ p.estoque }}</div>
+                      <div class="mt-auto pt-2">
+                        {% if p.estoque > 0 %}
+                        <button type="button" class="btn btn-rose btn-sm w-100 btn-add-produto"
+                          data-id="{{ p.id }}" data-nome="{{ p.nome }}" data-preco="{{ p.preco }}" data-estoque="{{ p.estoque }}">+ Adicionar</button>
+                        {% else %}
+                        <button type="button" class="btn btn-secondary btn-sm w-100" disabled>Esgotado</button>
+                        {% endif %}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                {% empty %}
+                <p class="text-muted p-3">Nenhum produto ativo cadastrado.</p>
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- CARRINHO / FINALIZAÇÃO -->
+        <div class="col-lg-5">
+          <div class="card admin-shell-card">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+              <strong>Carrinho</strong>
+              <button type="button" class="btn btn-sm btn-outline-danger" id="btnLimparCarrinho">Limpar</button>
+            </div>
+            <div class="card-body p-0" style="max-height:28vh;overflow-y:auto;">
+              <table class="table table-sm mb-0 admin-table">
+                <thead><tr><th>Produto</th><th class="text-center" style="width:90px;">Qtd</th><th class="text-end">Subtotal</th><th></th></tr></thead>
+                <tbody id="carrinhoBody">
+                  <tr id="trVazio"><td colspan="4" class="text-center text-muted py-3 small">Nenhum item adicionado.</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="card-body border-top py-2">
+
+              <!-- Cliente -->
+              <div class="mb-2">
+                <label class="form-label small mb-1 fw-semibold">Cliente</label>
+                <div class="d-flex gap-2 align-items-center">
+                  <select class="form-select form-select-sm flex-grow-1" name="cliente_id" id="pdvCliente">
+                    <option value="">Consumidor Final</option>
+                    {% for c in clientes %}<option value="{{ c.id }}">{{ c.nome }}</option>{% endfor %}
+                  </select>
+                  <a href="{% url 'cliente_novo' %}?next=pdv" class="btn btn-sm btn-outline-rose text-nowrap" title="Cadastrar novo cliente" target="_blank">+ Novo</a>
+                </div>
+                <div class="mt-1">
+                  <input id="pdvBuscaCliente" type="text" class="form-control form-control-sm" placeholder="🔎 Digitar para filtrar cliente...">
+                </div>
+              </div>
+
+              <!-- Pagamento -->
+              <div class="row g-2 mb-2">
+                <div class="col-6">
+                  <label class="form-label small mb-1">Pagamento</label>
+                  <select class="form-select form-select-sm" name="forma_pagamento" id="pdvPagamento" required>
+                    {% for v, l in formas_pagamento %}<option value="{{ v }}">{{ l }}</option>{% endfor %}
+                  </select>
+                </div>
+                <div class="col-6">
+                  <label class="form-label small mb-1">Desconto (R$)</label>
+                  <input type="number" class="form-control form-control-sm" name="desconto" id="pdvDesconto" step="0.01" min="0" value="0">
+                </div>
+              </div>
+
+              <div class="mb-2">
+                <label class="form-label small mb-1">Observação</label>
+                <input type="text" class="form-control form-control-sm" name="observacao" maxlength="300" placeholder="Opcional">
+              </div>
+
+              <!-- Totais -->
+              <div class="bg-light rounded p-2 mb-2">
+                <div class="d-flex justify-content-between small"><span>Subtotal:</span><span id="lblSubtotal">R$ 0,00</span></div>
+                <div class="d-flex justify-content-between small text-danger"><span>Desconto:</span><span id="lblDesconto">R$ 0,00</span></div>
+                <div class="d-flex justify-content-between fw-bold border-top mt-1 pt-1"><span>TOTAL:</span><span id="lblTotal" class="text-rose fs-5">R$ 0,00</span></div>
+              </div>
+
+              <!-- Troco (dinheiro) -->
+              <div id="trocoWrap" class="row g-2 mb-2 d-none">
+                <div class="col-6">
+                  <label class="form-label small mb-1">Valor pago (R$)</label>
+                  <input type="number" class="form-control form-control-sm" id="pdvPago" step="0.01" min="0" value="">
+                </div>
+                <div class="col-6 d-flex flex-column justify-content-end">
+                  <div class="bg-success text-white rounded p-2 text-center small fw-bold">Troco: <span id="lblTroco">R$ 0,00</span></div>
+                </div>
+              </div>
+
+              <button class="btn btn-rose w-100 mt-1" id="btnFinalizar" type="submit" disabled>
+                ✔ Finalizar venda
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Inputs ocultos gerados pelo JS -->
+      <div id="qtdHiddens"></div>
+    </form>
+  </div><!-- /aba pdv -->
+
+</div><!-- /tab-content -->
+
+{% endblock %}
+{% block extra_js %}
+<script>
+(function(){
+  // Abre PDV se vier de redirect de nova venda (mensagem de sucesso)
+  {% if aba_pdv %}
+  const tabPdv = document.getElementById('tab-pdv');
+  if(tabPdv) new bootstrap.Tab(tabPdv).show();
+  {% endif %}
+
+  const carrinho = {};
+  function fmt(v){ return 'R$ ' + Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+
+  function renderCarrinho(){
+    const tbody = document.getElementById('carrinhoBody');
+    tbody.querySelectorAll('tr.item-carrinho').forEach(r=>r.remove());
+    const ids = Object.keys(carrinho);
+    let subtotal = 0;
+    ids.forEach(id=>{
+      const it = carrinho[id];
+      subtotal += it.preco * it.qtd;
+      const tr = document.createElement('tr');
+      tr.className = 'item-carrinho';
+      tr.innerHTML = `
+        <td class="small">${it.nome}</td>
+        <td class="text-center">
+          <div class="input-group input-group-sm" style="width:82px;">
+            <button type="button" class="btn btn-outline-secondary py-0 px-1 btn-dec" data-id="${id}">−</button>
+            <input type="text" class="form-control form-control-sm text-center px-0" value="${it.qtd}" data-id="${id}" readonly style="min-width:28px;">
+            <button type="button" class="btn btn-outline-secondary py-0 px-1 btn-inc" data-id="${id}">+</button>
+          </div>
+        </td>
+        <td class="text-end small">${fmt(it.preco * it.qtd)}</td>
+        <td><button type="button" class="btn btn-sm btn-link text-danger p-0 btn-rem" data-id="${id}">✕</button></td>`;
+      tbody.appendChild(tr);
+    });
+    document.getElementById('trVazio').style.display = ids.length ? 'none' : '';
+    atualizarTotais(subtotal);
+    atualizarHiddens();
+    document.getElementById('btnFinalizar').disabled = ids.length === 0;
+  }
+
+  function atualizarTotais(subtotal){
+    const desc = Math.max(0, parseFloat(document.getElementById('pdvDesconto').value)||0);
+    const total = Math.max(0, subtotal - desc);
+    document.getElementById('lblSubtotal').textContent = fmt(subtotal);
+    document.getElementById('lblDesconto').textContent = fmt(desc);
+    document.getElementById('lblTotal').textContent = fmt(total);
+    calcTroco(total);
+  }
+
+  function calcTroco(total){
+    const pago = parseFloat(document.getElementById('pdvPago').value)||0;
+    document.getElementById('lblTroco').textContent = fmt(Math.max(0, pago - total));
+  }
+
+  function atualizarHiddens(){
+    const wrap = document.getElementById('qtdHiddens');
+    wrap.innerHTML = '';
+    Object.keys(carrinho).forEach(id=>{
+      const inp = document.createElement('input');
+      inp.type='hidden'; inp.name='qtd_'+id; inp.value=carrinho[id].qtd;
+      wrap.appendChild(inp);
+    });
+  }
+
+  function addItem(id, nome, preco, estoque){
+    if(carrinho[id]){ if(carrinho[id].qtd < estoque) carrinho[id].qtd++; }
+    else { carrinho[id]={nome, preco:parseFloat(preco), qtd:1, estoque:parseInt(estoque)}; }
+    renderCarrinho();
+  }
+
+  document.getElementById('carrinhoBody').addEventListener('click', function(e){
+    const id = e.target.dataset.id;
+    if(e.target.classList.contains('btn-inc')){ if(carrinho[id]&&carrinho[id].qtd<carrinho[id].estoque) carrinho[id].qtd++; renderCarrinho(); }
+    if(e.target.classList.contains('btn-dec')){ if(carrinho[id]){ carrinho[id].qtd--; if(carrinho[id].qtd<=0) delete carrinho[id]; } renderCarrinho(); }
+    if(e.target.classList.contains('btn-rem')){ delete carrinho[id]; renderCarrinho(); }
+  });
+
+  document.querySelectorAll('.btn-add-produto').forEach(btn=>{
+    btn.addEventListener('click', ()=>addItem(btn.dataset.id, btn.dataset.nome, btn.dataset.preco, btn.dataset.estoque));
+  });
+
+  document.getElementById('btnLimparCarrinho').addEventListener('click', ()=>{ Object.keys(carrinho).forEach(k=>delete carrinho[k]); renderCarrinho(); });
+  document.getElementById('pdvDesconto').addEventListener('input', ()=>renderCarrinho());
+  document.getElementById('pdvPago').addEventListener('input', ()=>{
+    const desc = Math.max(0,parseFloat(document.getElementById('pdvDesconto').value)||0);
+    const sub = Object.values(carrinho).reduce((s,it)=>s+it.preco*it.qtd,0);
+    calcTroco(Math.max(0,sub-desc));
+  });
+  document.getElementById('pdvPagamento').addEventListener('change', function(){
+    document.getElementById('trocoWrap').classList.toggle('d-none', this.value!=='dinheiro');
+  });
+
+  // Busca produto
+  document.getElementById('pdvBusca').addEventListener('input', function(){
+    const q = this.value.toLowerCase().trim();
+    document.querySelectorAll('.produto-card').forEach(el=>{
+      el.style.display = (!q || el.dataset.nome.includes(q) || el.dataset.codigo.includes(q)) ? '' : 'none';
+    });
+  });
+
+  // Busca / filtro de cliente no select
+  document.getElementById('pdvBuscaCliente').addEventListener('input', function(){
+    const q = this.value.toLowerCase().trim();
+    const sel = document.getElementById('pdvCliente');
+    Array.from(sel.options).forEach(opt=>{
+      opt.style.display = (!q || opt.value==='' || opt.text.toLowerCase().includes(q)) ? '' : 'none';
+    });
+    // Selecionar primeiro resultado visível ao digitar
+    if(q){
+      const primeiro = Array.from(sel.options).find(o=>o.value!==''&&o.style.display!=='none');
+      if(primeiro) sel.value = primeiro.value;
+    } else {
+      sel.value = '';
+    }
+  });
+})();
+</script>
 {% endblock %}

@@ -682,6 +682,11 @@ def lista_vendas(request):
 			"q": q,
 			"status": status,
 			"forma": forma,
+			# PDV inline
+			"produtos": Produto.objects.filter(ativo=True).order_by("nome"),
+			"clientes": Cliente.objects.order_by("nome"),
+			"formas_pagamento": Venda.FORMA_PAGAMENTO,
+			"aba_pdv": request.GET.get("pdv") == "1",
 		},
 	)
 

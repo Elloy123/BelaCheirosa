@@ -9,7 +9,7 @@
   </div>
   <div class="col-md-7">
     <h1 class="h3 text-rose">{{ produto.nome }}</h1>
-    <p class="produto-descricao text-muted">{{ produto.descricao|default:'Sem descrição' }}</p>
+    <p class="produto-descricao text-muted" style="text-align:justify;line-height:1.8;white-space:pre-line;">{{ produto.descricao|default:'Sem descrição' }}</p>
     <p><strong>Categoria:</strong> {{ produto.categoria.nome|default:'Sem categoria' }}</p>
     <p>
       <strong>Estoque:</strong> {{ produto.estoque }}
