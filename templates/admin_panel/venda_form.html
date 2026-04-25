@@ -1,0 +1,78 @@
+{% extends 'admin_panel/base.html' %}
+{% block title %}Nova Venda{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="h4 text-rose mb-0">Adicionar venda</h1>
+  <a class="btn btn-outline-secondary" href="{% url 'lista_vendas' %}">Voltar para vendas</a>
+</div>
+
+<form method="post" class="card admin-shell-card border-0 shadow-sm mb-3">
+  {% csrf_token %}
+  <div class="card-body">
+    <div class="row g-3 mb-3">
+      <div class="col-md-4">
+        <label class="form-label">Cliente</label>
+        <select class="form-select" name="cliente_id">
+          <option value="">Consumidor Final</option>
+          {% for c in clientes %}
+          <option value="{{ c.id }}">{{ c.nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Forma de pagamento</label>
+        <select class="form-select" name="forma_pagamento" required>
+          {% for v, l in formas_pagamento %}
+          <option value="{{ v }}">{{ l }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Desconto (R$)</label>
+        <input type="number" class="form-control" name="desconto" step="0.01" min="0" value="0">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Observação</label>
+        <input type="text" class="form-control" name="observacao" maxlength="300" placeholder="Opcional">
+      </div>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table admin-table align-middle">
+        <thead><tr><th>Produto</th><th>Preço</th><th>Estoque</th><th style="width: 120px;">Quantidade</th></tr></thead>
+        <tbody>
+          {% for p in produtos %}
+          <tr>
+            <td>{{ p.nome }}</td>
+            <td>R$ {{ p.preco|floatformat:2 }}</td>
+            <td>
+              {{ p.estoque }}
+              {% if p.estoque <= 0 %}
+              <span class="badge rounded-pill text-bg-danger ms-1">Esgotado</span>
+              {% endif %}
+            </td>
+            <td>
+              <input
+                type="number"
+                class="form-control form-control-sm"
+                name="qtd_{{ p.id }}"
+                min="0"
+                max="{{ p.estoque }}"
+                value="0"
+                {% if p.estoque <= 0 %}disabled{% endif %}
+              >
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="4" class="text-center py-4 text-muted">Sem produtos ativos para venda.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="d-flex justify-content-end mt-3">
+      <button class="btn btn-rose">Salvar venda</button>
+    </div>
+  </div>
+</form>
+{% endblock %}

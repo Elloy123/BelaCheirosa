@@ -11,6 +11,8 @@ from django.contrib.admin.views.decorators import staff_member_required
 from django.conf import settings
 from django.core.paginator import Paginator
 from django.db import IntegrityError
+from django.db import transaction
+from django.db.models.deletion import ProtectedError
 from django.db.models import (
 	Case,
 	CharField,
@@ -44,6 +46,9 @@ from .models import (
 	Venda,
 )
 from .pdf_utils import gerar_pdf_venda
+
+
+PER_PAGE_OPTIONS = (12, 24, 50, 100)
 
 
 def _paginas_visiveis(paginator, page_obj, vizinhos=2):
@@ -136,6 +141,16 @@ def _paginate(request, queryset, per_page):
 	return paginator.get_page(request.GET.get("page"))
 
 
+def _parse_per_page(value, default=24):
+	try:
+		selected = int(value)
+	except (ValueError, TypeError):
+		selected = default
+	if selected not in PER_PAGE_OPTIONS:
+		selected = default
+	return selected
+
+
 def _sum_subtotal_itens(item_queryset):
 	subtotal_expr = ExpressionWrapper(
 		F("preco_unitario") * F("quantidade"),
@@ -154,13 +169,7 @@ def home(request):
 	slug = request.GET.get("cat")
 	filtro = request.GET.get("filtro", "padrao")
 	busca = request.GET.get("q", "").strip()
-
-	try:
-		per_page = int(request.GET.get("por_pagina", 25))
-		if per_page < 1:
-			per_page = 25
-	except (ValueError, TypeError):
-		per_page = 25
+	per_page = _parse_per_page(request.GET.get("por_pagina"), default=24)
 
 	base_produtos = Produto.objects.filter(ativo=True).select_related("categoria", "categoria__parent")
 	produtos = base_produtos
@@ -212,6 +221,7 @@ def home(request):
 			"page_obj": page_obj,
 			"paginator": paginator,
 			"paginas_visiveis": _paginas_visiveis(paginator, page_obj),
+			"per_page_options": PER_PAGE_OPTIONS,
 			"per_page": per_page,
 			"categoria_ativa": categoria_ativa,
 			"categoria_pai_ativa": categoria_pai_ativa,
@@ -226,6 +236,8 @@ def home(request):
 
 def produto_detalhe(request, slug):
 	produto = get_object_or_404(Produto, slug=slug, ativo=True)
+	Produto.objects.filter(pk=produto.pk).update(visualizacoes=F("visualizacoes") + 1)
+	produto.refresh_from_db(fields=["visualizacoes"])
 	relacionados = Produto.objects.filter(
 		ativo=True, categoria=produto.categoria
 	).exclude(id=produto.id)[:6]
@@ -504,6 +516,155 @@ def dashboard(request):
 
 
 @staff_member_required(login_url="/admin/login/")
+def dashboard_completo(request):
+	hoje = timezone.now().date()
+	periodo = request.GET.get("periodo", "mes")
+	periodos = {
+		"7d": {"label": "Últimos 7 dias", "inicio": hoje - timedelta(days=6)},
+		"30d": {"label": "Últimos 30 dias", "inicio": hoje - timedelta(days=29)},
+		"mes": {"label": "Mês atual", "inicio": hoje.replace(day=1)},
+	}
+	if periodo not in periodos:
+		periodo = "mes"
+	periodo_info = periodos[periodo]
+	data_inicio = periodo_info["inicio"]
+
+	produtos_ativos = Produto.objects.filter(ativo=True)
+
+	valor_venda_expr = ExpressionWrapper(
+		F("preco") * F("estoque"),
+		output_field=DecimalField(max_digits=14, decimal_places=2),
+	)
+	valor_custo_expr = ExpressionWrapper(
+		F("custo") * F("estoque"),
+		output_field=DecimalField(max_digits=14, decimal_places=2),
+	)
+
+	resumo_estoque = produtos_ativos.aggregate(
+		total_venda=Coalesce(
+			Sum(valor_venda_expr),
+			Value(Decimal("0.00")),
+			output_field=DecimalField(max_digits=14, decimal_places=2),
+		),
+		total_custo=Coalesce(
+			Sum(valor_custo_expr),
+			Value(Decimal("0.00")),
+			output_field=DecimalField(max_digits=14, decimal_places=2),
+		),
+	)
+
+	total_venda_estoque = resumo_estoque["total_venda"]
+	total_custo_estoque = resumo_estoque["total_custo"]
+	lucro_potencial_estoque = total_venda_estoque - total_custo_estoque
+	margem_potencial_pct = (
+		(lucro_potencial_estoque / total_custo_estoque) * Decimal("100")
+		if total_custo_estoque > 0
+		else Decimal("0")
+	)
+
+	vendas_periodo = Venda.objects.filter(
+		status="concluida",
+		data__date__gte=data_inicio,
+		data__date__lte=hoje,
+	)
+	itens_concluidos = ItemVenda.objects.filter(venda__in=vendas_periodo).select_related("produto")
+	receita_vendida_expr = ExpressionWrapper(
+		F("preco_unitario") * F("quantidade"),
+		output_field=DecimalField(max_digits=14, decimal_places=2),
+	)
+	custo_vendido_expr = ExpressionWrapper(
+		F("produto__custo") * F("quantidade"),
+		output_field=DecimalField(max_digits=14, decimal_places=2),
+	)
+
+	resumo_vendas = itens_concluidos.aggregate(
+		receita=Coalesce(
+			Sum(receita_vendida_expr),
+			Value(Decimal("0.00")),
+			output_field=DecimalField(max_digits=14, decimal_places=2),
+		),
+		custo=Coalesce(
+			Sum(custo_vendido_expr),
+			Value(Decimal("0.00")),
+			output_field=DecimalField(max_digits=14, decimal_places=2),
+		),
+	)
+
+	receita_vendas = resumo_vendas["receita"]
+	custo_vendas = resumo_vendas["custo"]
+	lucro_real = receita_vendas - custo_vendas
+	taxa_lucro_real_pct = (
+		(lucro_real / custo_vendas) * Decimal("100")
+		if custo_vendas > 0
+		else Decimal("0")
+	)
+
+	mais_acessados = produtos_ativos.order_by("-visualizacoes", "-vendas", "nome")[:10]
+	mais_comprados = (
+		itens_concluidos
+		.values("produto__id", "produto__nome", "produto__slug")
+		.annotate(
+			qtd_total=Coalesce(Sum("quantidade"), 0),
+			receita=Coalesce(
+				Sum(receita_vendida_expr),
+				Value(Decimal("0.00")),
+				output_field=DecimalField(max_digits=14, decimal_places=2),
+			),
+			custo=Coalesce(
+				Sum(custo_vendido_expr),
+				Value(Decimal("0.00")),
+				output_field=DecimalField(max_digits=14, decimal_places=2),
+			),
+		)
+		.order_by("-qtd_total", "produto__nome")[:10]
+	)
+
+	insights = []
+	if total_custo_estoque > 0:
+		insights.append(
+			f"Margem potencial do estoque atual: {margem_potencial_pct:.2f}% sobre o custo." 
+		)
+	if custo_vendas > 0:
+		insights.append(
+			f"Taxa de lucro real em {periodo_info['label'].lower()}: {taxa_lucro_real_pct:.2f}%."
+		)
+	else:
+		insights.append(
+			f"Não há vendas concluídas em {periodo_info['label'].lower()} para calcular lucro real."
+		)
+	if mais_acessados:
+		topo_acessado = mais_acessados[0]
+		insights.append(
+			f"Produto mais acessado (acumulado): {topo_acessado.nome} com {topo_acessado.visualizacoes} visualizações."
+		)
+	if mais_comprados:
+		topo_vendido = mais_comprados[0]
+		insights.append(
+			f"Produto mais comprado em {periodo_info['label'].lower()}: {topo_vendido['produto__nome']} com {topo_vendido['qtd_total']} unidades vendidas."
+		)
+
+	return render(
+		request,
+		"admin_panel/dashboard_completo.html",
+		{
+			"total_venda_estoque": total_venda_estoque,
+			"total_custo_estoque": total_custo_estoque,
+			"lucro_potencial_estoque": lucro_potencial_estoque,
+			"margem_potencial_pct": margem_potencial_pct,
+			"receita_vendas": receita_vendas,
+			"custo_vendas": custo_vendas,
+			"lucro_real": lucro_real,
+			"taxa_lucro_real_pct": taxa_lucro_real_pct,
+			"periodo": periodo,
+			"periodo_label": periodo_info["label"],
+			"mais_acessados": mais_acessados,
+			"mais_comprados": mais_comprados,
+			"insights": insights,
+		},
+	)
+
+
+@staff_member_required(login_url="/admin/login/")
 def lista_pedidos(request):
 	status = request.GET.get("status", "pendente")
 	pedidos = Pedido.objects.prefetch_related("itens__produto")
@@ -610,6 +771,101 @@ def lista_vendas(request):
 
 
 @staff_member_required(login_url="/admin/login/")
+def venda_nova(request):
+	produtos = Produto.objects.filter(ativo=True).order_by("nome")
+	clientes = Cliente.objects.order_by("nome")
+
+	if request.method == "POST":
+		forma_pagamento = request.POST.get("forma_pagamento", "dinheiro")
+		formas_validas = {valor for valor, _ in Venda.FORMA_PAGAMENTO}
+		if forma_pagamento not in formas_validas:
+			messages.error(request, "Forma de pagamento inválida.")
+			return redirect("venda_nova")
+
+		try:
+			desconto = _parse_decimal_input(request.POST.get("desconto", "0"), "0")
+		except InvalidOperation:
+			messages.error(request, "Desconto inválido.")
+			return redirect("venda_nova")
+
+		cliente = None
+		cliente_id = request.POST.get("cliente_id", "").strip()
+		if cliente_id:
+			cliente = Cliente.objects.filter(pk=cliente_id).first()
+
+		itens_solicitados = []
+		for key, value in request.POST.items():
+			if not key.startswith("qtd_"):
+				continue
+			try:
+				produto_id = int(key.split("_", 1)[1])
+				qtd = int(value or "0")
+			except (ValueError, TypeError):
+				continue
+			if qtd > 0:
+				itens_solicitados.append((produto_id, qtd))
+
+		if not itens_solicitados:
+			messages.error(request, "Informe ao menos um item com quantidade maior que zero.")
+			return redirect("venda_nova")
+
+		produtos_map = {
+			p.id: p for p in Produto.objects.filter(id__in=[pid for pid, _ in itens_solicitados], ativo=True)
+		}
+
+		for produto_id, qtd in itens_solicitados:
+			produto = produtos_map.get(produto_id)
+			if not produto:
+				messages.error(request, "Um dos produtos selecionados não está disponível.")
+				return redirect("venda_nova")
+			if qtd > produto.estoque:
+				messages.error(request, f"Estoque insuficiente para {produto.nome}. Disponível: {produto.estoque}.")
+				return redirect("venda_nova")
+
+		status_venda = "pendente" if forma_pagamento == "fiado" else "concluida"
+
+		with transaction.atomic():
+			venda = Venda.objects.create(
+				cliente=cliente,
+				forma_pagamento=forma_pagamento,
+				status=status_venda,
+				desconto=desconto,
+				observacao=request.POST.get("observacao", "").strip(),
+			)
+
+			for produto_id, qtd in itens_solicitados:
+				produto = produtos_map[produto_id]
+				ItemVenda.objects.create(
+					venda=venda,
+					produto=produto,
+					quantidade=qtd,
+					preco_unitario=produto.preco,
+				)
+				produto.vendas += qtd
+				produto.save(update_fields=["vendas"])
+				MovimentacaoEstoque.objects.create(
+					produto=produto,
+					tipo="saida",
+					quantidade=qtd,
+					observacao=f"Baixa manual venda #{venda.id}",
+					responsavel=request.user.username,
+				)
+
+		messages.success(request, f"Venda #{venda.id} criada com sucesso.")
+		return redirect("venda_detalhe", pk=venda.pk)
+
+	return render(
+		request,
+		"admin_panel/venda_form.html",
+		{
+			"produtos": produtos,
+			"clientes": clientes,
+			"formas_pagamento": Venda.FORMA_PAGAMENTO,
+		},
+	)
+
+
+@staff_member_required(login_url="/admin/login/")
 def venda_detalhe(request, pk):
 	venda = get_object_or_404(
 		Venda.objects.select_related("cliente").prefetch_related("itens__produto"),
@@ -684,13 +940,7 @@ def lista_estoque(request):
 def lista_produtos(request):
 	q = request.GET.get("q", "").strip()
 	cat = request.GET.get("cat", "").strip()
-
-	try:
-		per_page = int(request.GET.get("por_pagina", 25))
-		if per_page < 1:
-			per_page = 25
-	except (ValueError, TypeError):
-		per_page = 25
+	per_page = _parse_per_page(request.GET.get("por_pagina"), default=24)
 
 	produtos = Produto.objects.select_related("categoria", "categoria__parent").order_by("nome")
 	if q:
@@ -711,13 +961,39 @@ def lista_produtos(request):
 			"page_obj": page_obj,
 			"paginator": paginator,
 			"paginas_visiveis": _paginas_visiveis(paginator, page_obj),
+			"per_page_options": PER_PAGE_OPTIONS,
 			"per_page": per_page,
 			"querystring": _querystring_without_page(request),
 			"q": q,
 			"cat": cat,
-			"categorias_pai": Categoria.objects.filter(parent__isnull=True).order_by("nome"),
+			"categorias_pai": Categoria.objects.filter(parent__isnull=True).prefetch_related("subcategorias").order_by("nome"),
 		},
 	)
+
+
+@staff_member_required(login_url="/admin/login/")
+def categoria_excluir(request, pk):
+	if request.method != "POST":
+		return redirect("lista_produtos")
+
+	categoria = get_object_or_404(Categoria, pk=pk)
+	if categoria.subcategorias.exists():
+		messages.error(request, "Remova primeiro as subcategorias dessa categoria.")
+		return redirect("lista_produtos")
+
+	if Produto.objects.filter(categoria=categoria).exists():
+		messages.error(request, "Existem produtos vinculados a esta categoria. Realoque antes de excluir.")
+		return redirect("lista_produtos")
+
+	nome = categoria.nome
+	try:
+		categoria.delete()
+	except ProtectedError:
+		messages.error(request, "Categoria não pode ser excluída porque possui vínculo com outros registros.")
+		return redirect("lista_produtos")
+
+	messages.success(request, f"Categoria '{nome}' excluída com sucesso.")
+	return redirect("lista_produtos")
 
 
 @staff_member_required(login_url="/admin/login/")

@@ -11,7 +11,12 @@
     <h1 class="h3 text-rose">{{ produto.nome }}</h1>
     <p class="text-muted">{{ produto.descricao|default:'Sem descrição' }}</p>
     <p><strong>Categoria:</strong> {{ produto.categoria.nome|default:'Sem categoria' }}</p>
-    <p><strong>Estoque:</strong> {{ produto.estoque }}</p>
+    <p>
+      <strong>Estoque:</strong> {{ produto.estoque }}
+      {% if produto.estoque <= 0 %}
+      <span class="badge rounded-pill text-bg-danger ms-1">Esgotado</span>
+      {% endif %}
+    </p>
     <p class="fs-4 fw-bold text-rose">R$ {{ produto.preco|floatformat:2 }}</p>
 
     <form method="post" action="{% url 'carrinho_adicionar' produto.id %}" class="row g-2">
@@ -21,7 +26,11 @@
       <div class="col-auto"><button class="btn btn-rose" {% if produto.estoque <= 0 %}disabled{% endif %}>Adicionar ao carrinho</button></div>
     </form>
     <div class="mt-3">
+      {% if produto.estoque <= 0 %}
+      <button class="btn btn-secondary" disabled>Produto esgotado</button>
+      {% else %}
       <a class="btn btn-success" target="_blank" href="https://wa.me/{{ whatsapp_numero }}?text=Ol%C3%A1!%20Gostei%20do%20produto:%20{{ produto.nome|urlencode }}%20(R$%20{{ produto.preco|floatformat:2|urlencode }})">Comprar no WhatsApp</a>
+      {% endif %}
     </div>
   </div>
 </div>

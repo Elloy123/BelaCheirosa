@@ -15,7 +15,7 @@
   <div class="col-md-2">
     <select name="por_pagina" class="form-select">
       <option value="12" {% if per_page == 12 %}selected{% endif %}>12 por pág.</option>
-      <option value="25" {% if per_page == 25 %}selected{% endif %}>25 por pág.</option>
+      <option value="24" {% if per_page == 24 %}selected{% endif %}>24 por pág.</option>
       <option value="50" {% if per_page == 50 %}selected{% endif %}>50 por pág.</option>
       <option value="100" {% if per_page == 100 %}selected{% endif %}>100 por pág.</option>
     </select>
@@ -57,6 +57,53 @@
         {% endfor %}
       </tbody>
     </table>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm mt-3">
+  <div class="card-header bg-white fw-semibold">Categorias (exclusão)</div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table admin-table mb-0">
+        <thead>
+          <tr><th>Categoria</th><th>Subcategorias</th><th class="text-end">Ações</th></tr>
+        </thead>
+        <tbody>
+          {% for c in categorias_pai %}
+          <tr>
+            <td class="fw-semibold">{{ c.nome }}</td>
+            <td>
+              {% for sub in c.subcategorias.all %}
+                <span class="badge rounded-pill text-bg-light border me-1">{{ sub.nome }}</span>
+              {% empty %}
+                <span class="text-muted">Sem subcategorias</span>
+              {% endfor %}
+            </td>
+            <td class="text-end">
+              <form method="post" action="{% url 'categoria_excluir' c.id %}" class="d-inline">
+                {% csrf_token %}
+                <button class="btn btn-outline-danger btn-sm" onclick="return confirm('Excluir a categoria {{ c.nome }}?');">Excluir</button>
+              </form>
+            </td>
+          </tr>
+          {% for sub in c.subcategorias.all %}
+          <tr>
+            <td class="ps-4">↳ {{ sub.nome }}</td>
+            <td><span class="text-muted">Subcategoria de {{ c.nome }}</span></td>
+            <td class="text-end">
+              <form method="post" action="{% url 'categoria_excluir' sub.id %}" class="d-inline">
+                {% csrf_token %}
+                <button class="btn btn-outline-danger btn-sm" onclick="return confirm('Excluir a subcategoria {{ sub.nome }}?');">Excluir</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+          {% empty %}
+          <tr><td colspan="3" class="text-center py-4 text-muted">Sem categorias cadastradas</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
   </div>
 </div>
 

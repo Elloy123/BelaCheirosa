@@ -13,7 +13,9 @@ urlpatterns = [
     path("checkout/", views.checkout, name="checkout"),
 
     path("painel/", views.dashboard, name="dashboard"),
+    path("painel/completo/", views.dashboard_completo, name="dashboard_completo"),
     path("painel/vendas/", views.lista_vendas, name="lista_vendas"),
+    path("painel/vendas/nova/", views.venda_nova, name="venda_nova"),
     path("painel/pedidos/", views.lista_pedidos, name="lista_pedidos"),
     path("painel/pedidos/<int:pk>/status/", views.pedido_atualizar_status, name="pedido_atualizar_status"),
     path("painel/vendas/<int:pk>/", views.venda_detalhe, name="venda_detalhe"),
@@ -22,6 +24,7 @@ urlpatterns = [
     path("painel/produtos/", views.lista_produtos, name="lista_produtos"),
     path("painel/produtos/novo/", views.produto_form, name="produto_novo"),
     path("painel/produtos/<int:pk>/editar/", views.produto_form, name="produto_editar"),
+    path("painel/produtos/categorias/<int:pk>/excluir/", views.categoria_excluir, name="categoria_excluir"),
     path("painel/produtos/categorias/novo/", views.categoria_rapida_form, name="categoria_rapida_form"),
     path("painel/produtos/subcategorias/novo/", views.subcategoria_rapida_form, name="subcategoria_rapida_form"),
 

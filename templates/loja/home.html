@@ -31,7 +31,7 @@
     <input type="hidden" name="filtro" value="{{ filtro_ativo }}">
     <select name="por_pagina" class="form-select form-select-sm compact-select" style="width:auto;" onchange="this.form.submit()">
       <option value="12" {% if per_page == 12 %}selected{% endif %}>12</option>
-      <option value="25" {% if per_page == 25 %}selected{% endif %}>25</option>
+      <option value="24" {% if per_page == 24 %}selected{% endif %}>24</option>
       <option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
       <option value="100" {% if per_page == 100 %}selected{% endif %}>100</option>
     </select>
@@ -55,9 +55,18 @@
       </div>
       <div class="card-body d-flex flex-column">
         <h6 class="fw-bold">{{ produto.nome }}</h6>
-        <p class="small text-muted mb-2">Estoque: {{ produto.estoque }}</p>
+        <p class="small text-muted mb-2">
+          Estoque: {{ produto.estoque }}
+          {% if produto.estoque <= 0 %}
+          <span class="badge rounded-pill text-bg-danger ms-1">Esgotado</span>
+          {% endif %}
+        </p>
         <p class="fw-bold fs-5 text-rose mt-auto">R$ {{ produto.preco|floatformat:2 }}</p>
+        {% if produto.estoque <= 0 %}
+        <button class="btn btn-secondary btn-sm w-100" disabled>Produto esgotado</button>
+        {% else %}
         <a class="btn btn-success btn-sm w-100" target="_blank" href="https://wa.me/{{ whatsapp_numero }}?text=Ol%C3%A1!%20Gostei%20do%20produto:%20{{ produto.nome|urlencode }}%20(R$%20{{ produto.preco|floatformat:2|urlencode }})">Comprar no WhatsApp</a>
+        {% endif %}
         <form method="post" action="{% url 'carrinho_adicionar' produto.id %}" class="mt-2">
           {% csrf_token %}
           <input type="hidden" name="next" value="{{ request.get_full_path }}">

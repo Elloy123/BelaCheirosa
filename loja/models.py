@@ -57,6 +57,7 @@ class Produto(models.Model):
 	estoque_minimo = models.PositiveIntegerField(default=5)
 	ativo = models.BooleanField(default=True, db_index=True)
 	vendas = models.PositiveIntegerField(default=0)
+	visualizacoes = models.PositiveIntegerField(default=0)
 	imagem = models.ImageField(upload_to="produtos/", blank=True, null=True)
 	criado_em = models.DateTimeField(auto_now_add=True)
 

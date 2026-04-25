@@ -1,7 +1,10 @@
 {% extends 'admin_panel/base.html' %}
 {% block title %}Dashboard{% endblock %}
 {% block content %}
-<h1 class="h4 text-rose mb-3">Dashboard</h1>
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="h4 text-rose mb-0">Dashboard</h1>
+  <a class="btn btn-rose" href="{% url 'dashboard_completo' %}">Dashboard completo</a>
+</div>
 <div class="row g-3 mb-4">
   <div class="col-md-3"><div class="card admin-kpi-card"><div class="card-body"><small>Faturamento Hoje</small><div class="fs-4 fw-bold">R$ {{ faturamento_hoje|floatformat:2 }}</div></div></div></div>
   <div class="col-md-3"><div class="card admin-kpi-card"><div class="card-body"><small>Faturamento Mês</small><div class="fs-4 fw-bold">R$ {{ faturamento_mes|floatformat:2 }}</div></div></div></div>

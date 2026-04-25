@@ -1,7 +1,10 @@
 {% extends 'admin_panel/base.html' %}
 {% block title %}Vendas{% endblock %}
 {% block content %}
-<h1 class="h4 text-rose mb-3">Vendas</h1>
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="h4 text-rose mb-0">Vendas</h1>
+  <a class="btn btn-rose" href="{% url 'venda_nova' %}">Adicionar venda</a>
+</div>
 <form class="row g-2 mb-3">
   <div class="col-md-4"><input name="q" value="{{ q }}" class="form-control" placeholder="Cliente ou nº da venda"></div>
   <div class="col-md-3"><select name="status" class="form-select"><option value="">Todos status</option>{% for v,l in status_choices %}<option value="{{ v }}" {% if status == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
