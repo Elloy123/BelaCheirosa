@@ -71,7 +71,10 @@
         <div class="col-lg-7">
           <div class="card admin-shell-card">
             <div class="card-header bg-white pb-2">
-              <input id="pdvBusca" type="text" class="form-control" placeholder="🔍 Buscar produto por nome ou código...">
+              <div class="position-relative">
+                <input id="pdvBusca" type="text" class="form-control pe-5" placeholder="🔍 Nome, código ou parte da palavra... (ex: algodão, amora)">
+                <button type="button" id="pdvBuscaLimpar" class="btn btn-link position-absolute end-0 top-50 translate-middle-y pe-2 text-muted d-none" title="Limpar busca" style="font-size:1.1rem; line-height:1;">✕</button>
+              </div>
             </div>
             <div class="card-body p-2" style="max-height:60vh;overflow-y:auto;">
               <div class="row g-2" id="pdvProdutos">
@@ -312,12 +315,88 @@
   }
 
   // Busca produto
-  document.getElementById('pdvBusca').addEventListener('input', function(){
-    const q = this.value.toLowerCase().trim();
-    document.querySelectorAll('.produto-card').forEach(el=>{
-      el.style.display = (!q || el.dataset.nome.includes(q) || el.dataset.codigo.includes(q)) ? '' : 'none';
+  (function(){
+    // Normaliza texto: remove acentos, lowercase, trim
+    function norm(s){
+      return (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+    }
+
+    // Distância de Levenshtein simplificada (apenas para palavras curtas)
+    function levenshtein(a, b){
+      if(a.length > 12 || b.length > 12) return 99; // pula palavras muito longas
+      const m = a.length, n = b.length;
+      const dp = Array.from({length: m+1}, (_, i) => Array.from({length: n+1}, (_, j) => i===0 ? j : j===0 ? i : 0));
+      for(let i=1;i<=m;i++) for(let j=1;j<=n;j++)
+        dp[i][j] = a[i-1]===b[j-1] ? dp[i-1][j-1] : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
+      return dp[m][n];
+    }
+
+    // Verifica se uma palavra bate com algum trecho do texto (com tolerância)
+    function wordMatches(word, text){
+      if(!word) return true;
+      if(text.includes(word)) return true; // exato
+      // Tolerância: 1 erro para palavras de 5+ letras, 2 erros para 7+ letras
+      const maxDist = word.length >= 7 ? 2 : word.length >= 5 ? 1 : 0;
+      if(maxDist === 0) return false;
+      // Verifica contra cada palavra do texto
+      const textWords = text.split(/\s+/);
+      return textWords.some(tw => {
+        // Também testa substrings do texto do mesmo tamanho
+        for(let start=0; start <= text.length - word.length + maxDist; start++){
+          const slice = text.substr(start, word.length + 1);
+          if(levenshtein(word, slice) <= maxDist) return true;
+          const slice2 = text.substr(start, word.length);
+          if(levenshtein(word, slice2) <= maxDist) return true;
+        }
+        return levenshtein(word, tw) <= maxDist;
+      });
+    }
+
+    function filtrarProdutos(q){
+      const words = norm(q).split(/\s+/).filter(w=>w.length>0);
+      let totalVisiveis = 0;
+      document.querySelectorAll('.produto-card').forEach(el=>{
+        const nomeNorm = norm(el.dataset.nome);
+        const codigoNorm = norm(el.dataset.codigo||'');
+        if(!words.length){
+          el.style.display = '';
+          totalVisiveis++;
+          return;
+        }
+        // Todas as palavras precisam bater (nome OU código)
+        const bate = words.every(w => wordMatches(w, nomeNorm) || codigoNorm.includes(w));
+        el.style.display = bate ? '' : 'none';
+        if(bate) totalVisiveis++;
+      });
+      // Mostrar contador de resultados
+      let contador = document.getElementById('pdvBuscaContador');
+      if(!contador){
+        contador = document.createElement('small');
+        contador.id = 'pdvBuscaContador';
+        contador.className = 'text-muted ms-2';
+        document.getElementById('pdvBusca').parentNode.appendChild(contador);
+      }
+      contador.textContent = q ? `${totalVisiveis} resultado(s)` : '';
+    }
+
+    document.getElementById('pdvBusca').addEventListener('input', function(){
+      filtrarProdutos(this.value);
+      const btnLimpar = document.getElementById('pdvBuscaLimpar');
+      if(btnLimpar) btnLimpar.classList.toggle('d-none', !this.value);
     });
-  });
+
+    // Botão limpar busca
+    const btnLimpar = document.getElementById('pdvBuscaLimpar');
+    if(btnLimpar){
+      btnLimpar.addEventListener('click', function(){
+        const inp = document.getElementById('pdvBusca');
+        inp.value = '';
+        filtrarProdutos('');
+        this.classList.add('d-none');
+        inp.focus();
+      });
+    }
+  })();
 
   // Busca / filtro de cliente no select
   document.getElementById('pdvBuscaCliente').addEventListener('input', function(){
