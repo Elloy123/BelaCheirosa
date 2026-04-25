@@ -1339,8 +1339,7 @@ def conta_pagar_form(request):
 		parcelas_pagas = max(0, min(parcelas_pagas, parcelas))
 
 		if parcelas_pagas > 0 and not data_pagamento:
-			messages.error(request, "Informe a data do pagamento quando houver parcelas pagas.")
-			return redirect("conta_pagar_novo")
+			data_pagamento = date.today()
 
 		grupo = uuid4().hex[:12]
 		valores_parcelas = _dividir_em_parcelas(valor_total, parcelas)

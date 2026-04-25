@@ -43,6 +43,7 @@
   const inputParcelas = document.getElementById('inputParcelas');
   const inputVencimento = document.getElementById('inputVencimento');
   const inputParcelasPagas = document.getElementById('inputParcelasPagas');
+  const inputDataPagamento = document.querySelector('input[name="data_pagamento"]');
   const tbody = document.getElementById('tabelaParcelas');
 
   function addMonths(date, months) {
@@ -94,6 +95,16 @@
   inputVencimento.addEventListener('change', renderParcelas);
   inputParcelasPagas.addEventListener('change', renderParcelas);
   inputParcelasPagas.addEventListener('input', renderParcelas);
+
+  function garantirDataPagamento() {
+    const parcelasPagas = parseInt(inputParcelasPagas.value || '0', 10) || 0;
+    if (parcelasPagas > 0 && inputDataPagamento && !inputDataPagamento.value) {
+      inputDataPagamento.value = new Date().toISOString().slice(0, 10);
+    }
+  }
+
+  inputParcelasPagas.addEventListener('change', garantirDataPagamento);
+  inputParcelasPagas.addEventListener('input', garantirDataPagamento);
 })();
 </script>
 {% endblock %}
