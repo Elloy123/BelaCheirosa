@@ -1117,6 +1117,8 @@ def lista_clientes(request):
 
 @staff_member_required(login_url="/admin/login/")
 def cliente_form(request, pk=None):
+	from django.urls import reverse
+	
 	cliente = get_object_or_404(Cliente, pk=pk) if pk else None
 	next_page = request.GET.get("next", "").strip()
 
@@ -1128,10 +1130,10 @@ def cliente_form(request, pk=None):
 			
 			# Redireciona para PDV com cliente pré-selecionado
 			if next_page == "pdv":
-				return redirect(f"lista_vendas?pdv=1&cliente_id={novo_cliente.id}")
+				return redirect(reverse("lista_vendas") + f"?pdv=1&cliente_id={novo_cliente.id}")
 			# Redireciona para fiado com cliente pré-selecionado
 			elif next_page == "fiado":
-				return redirect(f"fiado_novo?cliente_id={novo_cliente.id}")
+				return redirect(reverse("fiado_novo") + f"?cliente_id={novo_cliente.id}")
 			
 			return redirect("lista_clientes")
 	else:
@@ -1204,6 +1206,8 @@ def lista_fiados(request):
 
 @staff_member_required(login_url="/admin/login/")
 def fiado_form(request):
+	cliente_id_pre = request.GET.get("cliente_id", "").strip()
+	
 	if request.method == "POST":
 		cliente_id = request.POST.get("cliente_id")
 		if not cliente_id:
@@ -1243,7 +1247,10 @@ def fiado_form(request):
 	return render(
 		request,
 		"admin_panel/fiado_form.html",
-		{"clientes": Cliente.objects.all().order_by("nome")},
+		{
+			"clientes": Cliente.objects.all().order_by("nome"),
+			"cliente_id_pre": cliente_id_pre,
+		},
 	)
 
 

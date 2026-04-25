@@ -7,10 +7,19 @@
   <div class="col-md-6">
     <label class="form-label">Cliente</label>
     <div class="d-flex gap-2">
-      <select name="cliente_id" id="fiadoClienteSelect" class="form-select" required>{% for c in clientes %}<option value="{{ c.id }}">{{ c.nome }}</option>{% endfor %}</select>
+      <select name="cliente_id" id="fiadoClienteSelect" class="form-select" required>{% for c in clientes %}<option value="{{ c.id }}" {% if cliente_id_pre == c.id|stringformat:"s" %}selected{% endif %}>{{ c.nome }}</option>{% endfor %}</select>
       <button type="button" class="btn btn-outline-rose text-nowrap" id="btnNovoClienteFiado" data-bs-toggle="modal" data-bs-target="#modalNovoClienteFiado" title="Cadastrar novo cliente">+ Novo</button>
     </div>
   </div>
+  <div class="col-md-6"><label class="form-label">Referência</label><input name="referencia" class="form-control" placeholder="Ex: Lançamento manual de fiado"></div>
+  <div class="col-md-4"><label class="form-label">Valor total</label><input type="number" step="0.01" name="valor_total" class="form-control" required></div>
+  <div class="col-md-4"><label class="form-label">Número de parcelas</label><input type="number" min="1" name="parcelas" class="form-control" value="1" required></div>
+  <div class="col-md-4"><label class="form-label">Primeiro vencimento</label><input type="date" name="vencimento" class="form-control" required></div>
+  <div class="col-md-12"><label class="form-label">Observação</label><input name="observacao" class="form-control" placeholder="Opcional"></div>
+  <div class="col-12"><div class="alert alert-light border small mb-0">Os produtos do fiado serão lançados no PDV. Este cadastro manual registra apenas o financeiro parcelado.</div></div>
+  <div class="col-12"><button class="btn btn-rose">Salvar</button></div>
+</form>
+</div></div>
   <div class="col-md-6"><label class="form-label">Referência</label><input name="referencia" class="form-control" placeholder="Ex: Lançamento manual de fiado"></div>
   <div class="col-md-4"><label class="form-label">Valor total</label><input type="number" step="0.01" name="valor_total" class="form-control" required></div>
   <div class="col-md-4"><label class="form-label">Número de parcelas</label><input type="number" min="1" name="parcelas" class="form-control" value="1" required></div>
@@ -80,31 +89,43 @@
 (function(){
   const formModal = document.getElementById('formNovoClienteFiado');
   const btnSalvar = document.getElementById('btnSalvarClienteFiado');
-  const modal = bootstrap.Modal.getInstance(document.getElementById('modalNovoClienteFiado')) || new bootstrap.Modal(document.getElementById('modalNovoClienteFiado'));
+  const modalElement = document.getElementById('modalNovoClienteFiado');
+  const modal = new bootstrap.Modal(modalElement);
 
-  btnSalvar.addEventListener('click', async function(){
+  btnSalvar.addEventListener('click', function(){
     if(!formModal.checkValidity()){
       formModal.classList.add('was-validated');
       return;
     }
 
-    const dados = new FormData(formModal);
-    try {
-      const resp = await fetch('{% url "cliente_novo" %}?next=fiado', {
-        method: 'POST',
-        body: dados,
-        headers: {'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value}
-      });
-      if(resp.ok){
-        const html = await resp.text();
-        // Se retornou redirecionamento (cliente_id no URL), recarregar página com novo cliente
-        if(resp.redirected || resp.url.includes('cliente_id=')){
-          window.location.reload();
-        }
-      }
-    } catch(e) {
-      console.error('Erro ao salvar cliente:', e);
-    }
+    btnSalvar.disabled = true;
+    btnSalvar.innerHTML = '⏳ Salvando...';
+
+    // Criar formulário oculto para fazer POST real (que segue redirects automaticamente)
+    const formHidden = document.createElement('form');
+    formHidden.method = 'POST';
+    formHidden.action = '{% url "cliente_novo" %}?next=fiado';
+    
+    // Adicionar CSRF token
+    const csrfInput = document.createElement('input');
+    csrfInput.type = 'hidden';
+    csrfInput.name = 'csrfmiddlewaretoken';
+    csrfInput.value = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    formHidden.appendChild(csrfInput);
+    
+    // Adicionar todos os campos do modal
+    const inputs = formModal.querySelectorAll('input');
+    inputs.forEach(input => {
+      const newInput = document.createElement('input');
+      newInput.type = 'hidden';
+      newInput.name = input.name;
+      newInput.value = input.value;
+      formHidden.appendChild(newInput);
+    });
+    
+    // Adicionar ao DOM e submeter
+    document.body.appendChild(formHidden);
+    formHidden.submit();
   });
 })();
 </script>
