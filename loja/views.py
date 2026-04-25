@@ -1162,6 +1162,23 @@ def lista_clientes(request):
 
 
 @staff_member_required(login_url="/admin/login/")
+def cliente_excluir(request, pk):
+	if request.method != "POST":
+		return redirect("lista_clientes")
+
+	cliente = get_object_or_404(Cliente, pk=pk)
+	nome = cliente.nome
+	try:
+		cliente.delete()
+	except ProtectedError:
+		messages.error(request, "Cliente não pode ser excluído porque possui vínculo com outros registros protegidos.")
+		return redirect("lista_clientes")
+
+	messages.success(request, f"Cliente '{nome}' excluído com sucesso.")
+	return redirect("lista_clientes")
+
+
+@staff_member_required(login_url="/admin/login/")
 def cliente_form(request, pk=None):
 	from django.urls import reverse
 	

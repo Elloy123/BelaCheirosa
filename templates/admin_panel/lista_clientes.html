@@ -10,9 +10,24 @@
   <div class="col-md-3"><select name="situacao" class="form-select"><option value="">Todas situações</option>{% for v,l in situacoes %}<option value="{{ v }}" {% if sit == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
   <div class="col-md-2"><button class="btn btn-rose w-100">Filtrar</button></div>
 </form>
-<div class="card border-0 shadow-sm"><div class="table-responsive"><table class="table mb-0"><thead><tr><th>Nome</th><th>Telefone</th><th>Situação</th><th>Em aberto</th><th></th></tr></thead><tbody>
+<div class="card border-0 shadow-sm"><div class="table-responsive"><table class="table mb-0"><thead><tr><th>Nome</th><th>Telefone</th><th>Situação</th><th>Em aberto</th><th>Ações</th></tr></thead><tbody>
 {% for c in clientes %}
-<tr><td>{{ c.nome }}</td><td>{{ c.telefone|default:'-' }}</td><td>{{ c.situacao }}</td><td>R$ {{ c.total_em_aberto|floatformat:2 }}</td><td><a href="{% url 'cliente_detalhe' c.id %}">Detalhe</a> | <a href="{% url 'cliente_editar' c.id %}">Editar</a></td></tr>
+<tr>
+  <td>{{ c.nome }}</td>
+  <td>{{ c.telefone|default:'-' }}</td>
+  <td>{{ c.situacao }}</td>
+  <td>R$ {{ c.total_em_aberto|floatformat:2 }}</td>
+  <td>
+    <div class="d-flex gap-2 align-items-center flex-wrap">
+      <a href="{% url 'cliente_detalhe' c.id %}">Detalhe</a>
+      <a href="{% url 'cliente_editar' c.id %}">Editar</a>
+      <form method="post" action="{% url 'cliente_excluir' c.id %}" onsubmit="return confirm('Excluir este cliente?');" class="m-0">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-sm btn-outline-danger">Excluir</button>
+      </form>
+    </div>
+  </td>
+</tr>
 {% empty %}<tr><td colspan="5" class="text-center py-4 text-muted">Sem clientes</td></tr>{% endfor %}
 </tbody></table></div></div>
 {% endblock %}

@@ -43,6 +43,7 @@ urlpatterns = [
     path("painel/boletos/<int:pk>/pagamento/", views.conta_pagar_atualizar_pagamento, name="conta_pagar_atualizar_pagamento"),
     path("painel/boletos/<int:pk>/excluir/", views.conta_pagar_excluir, name="conta_pagar_excluir"),
     path("painel/clientes/novo/", views.cliente_form, name="cliente_novo"),
+    path("painel/clientes/<int:pk>/excluir/", views.cliente_excluir, name="cliente_excluir"),
     path("painel/clientes/<int:pk>/editar/", views.cliente_form, name="cliente_editar"),
     path("painel/clientes/<int:pk>/", views.cliente_detalhe, name="cliente_detalhe"),
 
