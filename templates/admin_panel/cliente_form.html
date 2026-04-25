@@ -1,12 +1,71 @@
 {% extends 'admin_panel/base.html' %}
 {% block title %}Cliente{% endblock %}
 {% block content %}
-<h1 class="h4 text-rose mb-3">{% if cliente %}Editar{% else %}Novo{% endif %} Cliente</h1>
-<div class="card border-0 shadow-sm"><div class="card-body">
-  <form method="post">
-    {% csrf_token %}
-    <div class="row g-2">{{ form.as_p }}</div>
-    <button class="btn btn-rose">Salvar</button>
-  </form>
-</div></div>
+<h1 class="h4 text-rose mb-4">{% if cliente %}Editar{% else %}Novo{% endif %} Cliente</h1>
+<div class="card border-0 shadow-sm">
+  <div class="card-body">
+    <form method="post" class="row g-3">
+      {% csrf_token %}
+      {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+      
+      <!-- Nome -->
+      <div class="col-md-8">
+        <label class="form-label">Nome *</label>
+        {{ form.nome }}
+      </div>
+      
+      <!-- Situação -->
+      <div class="col-md-4">
+        <label class="form-label">Situação</label>
+        {{ form.situacao }}
+      </div>
+      
+      <!-- CPF / Telefone -->
+      <div class="col-md-6">
+        <label class="form-label">CPF</label>
+        {{ form.cpf }}
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Telefone</label>
+        {{ form.telefone }}
+      </div>
+      
+      <!-- Email -->
+      <div class="col-12">
+        <label class="form-label">Email</label>
+        {{ form.email }}
+      </div>
+      
+      <!-- Endereço / Bairro -->
+      <div class="col-md-8">
+        <label class="form-label">Endereço</label>
+        {{ form.endereco }}
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Bairro</label>
+        {{ form.bairro }}
+      </div>
+      
+      <!-- Limite de crédito -->
+      <div class="col-md-6">
+        <label class="form-label">Limite de crédito (R$)</label>
+        {{ form.limite_credito }}
+      </div>
+      
+      <!-- Observação -->
+      <div class="col-12">
+        <label class="form-label">Observação</label>
+        {{ form.observacao }}
+      </div>
+      
+      <!-- Botões -->
+      <div class="col-12 d-flex gap-2 pt-2">
+        <button type="submit" class="btn btn-rose">
+          {% if cliente %}Atualizar{% else %}Salvar{% endif %} cliente
+        </button>
+        <a href="javascript:history.back()" class="btn btn-outline-secondary">Cancelar</a>
+      </div>
+    </form>
+  </div>
+</div>
 {% endblock %}

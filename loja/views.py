@@ -1118,17 +1118,30 @@ def lista_clientes(request):
 @staff_member_required(login_url="/admin/login/")
 def cliente_form(request, pk=None):
 	cliente = get_object_or_404(Cliente, pk=pk) if pk else None
+	next_page = request.GET.get("next", "").strip()
 
 	if request.method == "POST":
 		form = ClienteForm(request.POST, instance=cliente)
 		if form.is_valid():
-			form.save()
+			novo_cliente = form.save()
 			messages.success(request, "Cliente salvo com sucesso.")
+			
+			# Redireciona para PDV com cliente pré-selecionado
+			if next_page == "pdv":
+				return redirect(f"lista_vendas?pdv=1&cliente_id={novo_cliente.id}")
+			# Redireciona para fiado com cliente pré-selecionado
+			elif next_page == "fiado":
+				return redirect(f"fiado_novo?cliente_id={novo_cliente.id}")
+			
 			return redirect("lista_clientes")
 	else:
 		form = ClienteForm(instance=cliente)
 
-	return render(request, "admin_panel/cliente_form.html", {"form": form, "cliente": cliente})
+	return render(
+		request,
+		"admin_panel/cliente_form.html",
+		{"form": form, "cliente": cliente, "next": next_page}
+	)
 
 
 @staff_member_required(login_url="/admin/login/")

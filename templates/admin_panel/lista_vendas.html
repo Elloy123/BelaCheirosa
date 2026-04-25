@@ -304,6 +304,13 @@
   // Estado inicial dos campos dependentes da forma de pagamento
   document.getElementById('pdvPagamento').dispatchEvent(new Event('change'));
 
+  // Carregar cliente do querystring (retorno de cadastro no cliente_novo)
+  const params = new URLSearchParams(window.location.search);
+  const clienteIdFromUrl = params.get('cliente_id');
+  if(clienteIdFromUrl){
+    document.getElementById('pdvCliente').value = clienteIdFromUrl;
+  }
+
   // Busca produto
   document.getElementById('pdvBusca').addEventListener('input', function(){
     const q = this.value.toLowerCase().trim();

@@ -508,3 +508,54 @@ h1, h2, h3, h4, h5, h6,
     padding-bottom: 0.12rem;
   }
 }
+
+/* ========== FORMULÁRIOS DO PAINEL ADMIN ========== */
+
+/* Formulário de cliente melhorado */
+form.row.g-2 {
+  --bs-gutter-x: 1.5rem;
+  --bs-gutter-y: 1.25rem;
+}
+
+form.row.g-2 .form-label {
+  display: block;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 0.5rem;
+  text-align: left;
+}
+
+form.row.g-2 .form-control,
+form.row.g-2 .form-select {
+  border: 1px solid #e0bdd3;
+  border-radius: 6px;
+  padding: 0.65rem 0.85rem;
+  font-size: 0.95rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+form.row.g-2 .form-control:focus,
+form.row.g-2 .form-select:focus {
+  border-color: var(--rose);
+  box-shadow: 0 0 0 3px rgba(216, 27, 96, 0.1);
+}
+
+form.row.g-2 .form-control::placeholder {
+  color: #b8949f;
+}
+
+form.row.g-2 .btn-rose {
+  padding: 0.6rem 1.5rem;
+  font-weight: 600;
+  border-radius: 6px;
+}
+
+/* Alinhamento e espaçamento dos campos */
+form.row.g-2 [class*="col-"] {
+  margin-bottom: 0.25rem;
+}
+
+form.row.g-2 .col-12,
+form.row.g-2 .col-md-12 {
+  margin-top: 0.5rem;
+}
