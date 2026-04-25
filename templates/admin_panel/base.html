@@ -26,10 +26,8 @@
     <aside class="col-xl-2 col-lg-3 mb-3 admin-sidebar">
       <div class="list-group">
         <a href="{% url 'dashboard' %}" class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">Dashboard</a>
-        <a href="{% url 'dashboard_completo' %}" class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'dashboard_completo' %}active{% endif %}">Dashboard completo</a>
         <a href="{% url 'lista_pedidos' %}" class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'lista_pedidos' %}active{% endif %}">Pedidos pendentes</a>
         <a href="{% url 'lista_vendas' %}" class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'lista_vendas' or request.resolver_match.url_name == 'venda_detalhe' %}active{% endif %}">Vendas</a>
-        <a href="{% url 'venda_nova' %}" class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'venda_nova' %}active{% endif %}">Adicionar venda</a>
         <a href="{% url 'lista_produtos' %}" class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'lista_produtos' or request.resolver_match.url_name == 'produto_novo' or request.resolver_match.url_name == 'produto_editar' %}active{% endif %}">Produtos</a>
         <a href="{% url 'lista_estoque' %}" class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'lista_estoque' or request.resolver_match.url_name == 'movimentar_estoque' %}active{% endif %}">Estoque</a>
         <a href="{% url 'lista_fiados' %}" class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'lista_fiados' or request.resolver_match.url_name == 'fiado_novo' %}active{% endif %}">Clientes fiado</a>

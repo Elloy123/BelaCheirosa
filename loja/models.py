@@ -253,6 +253,9 @@ class FiadoConta(models.Model):
 	vencimento = models.DateField(db_index=True)
 	status = models.CharField(max_length=10, choices=STATUS, default="pendente", db_index=True)
 	observacao = models.CharField(max_length=300, blank=True)
+	grupo_referencia = models.CharField(max_length=40, blank=True, default="", db_index=True)
+	parcela_numero = models.PositiveIntegerField(default=1)
+	parcelas_total = models.PositiveIntegerField(default=1)
 	criado_em = models.DateTimeField(auto_now_add=True)
 
 	class Meta:

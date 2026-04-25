@@ -64,6 +64,7 @@
   <div class="tab-pane fade {% if aba_pdv %}show active{% endif %}" id="painel-pdv" role="tabpanel">
     <form id="pdvForm" method="post" action="{% url 'venda_nova' %}" autocomplete="off">
       {% csrf_token %}
+      <input type="hidden" name="origem_fluxo" value="pdv">
       <div class="row g-3 align-items-start">
 
         <!-- CATÁLOGO -->
@@ -149,6 +150,17 @@
                 <div class="col-6">
                   <label class="form-label small mb-1">Desconto (R$)</label>
                   <input type="number" class="form-control form-control-sm" name="desconto" id="pdvDesconto" step="0.01" min="0" value="0">
+                </div>
+              </div>
+
+              <div id="fiadoWrap" class="row g-2 mb-2 d-none">
+                <div class="col-6">
+                  <label class="form-label small mb-1">Parcelas (fiado)</label>
+                  <input type="number" class="form-control form-control-sm" id="pdvFiadoParcelas" name="fiado_parcelas" min="1" value="1">
+                </div>
+                <div class="col-6">
+                  <label class="form-label small mb-1">Primeiro pagamento</label>
+                  <input type="date" class="form-control form-control-sm" id="pdvFiadoVencimento" name="fiado_primeiro_vencimento" value="{{ hoje_iso }}">
                 </div>
               </div>
 
@@ -281,8 +293,16 @@
     calcTroco(Math.max(0,sub-desc));
   });
   document.getElementById('pdvPagamento').addEventListener('change', function(){
-    document.getElementById('trocoWrap').classList.toggle('d-none', this.value!=='dinheiro');
+    const ehDinheiro = this.value === 'dinheiro';
+    const ehFiado = this.value === 'fiado';
+    document.getElementById('trocoWrap').classList.toggle('d-none', !ehDinheiro);
+    document.getElementById('fiadoWrap').classList.toggle('d-none', !ehFiado);
+    document.getElementById('pdvFiadoParcelas').required = ehFiado;
+    document.getElementById('pdvFiadoVencimento').required = ehFiado;
   });
+
+  // Estado inicial dos campos dependentes da forma de pagamento
+  document.getElementById('pdvPagamento').dispatchEvent(new Event('change'));
 
   // Busca produto
   document.getElementById('pdvBusca').addEventListener('input', function(){

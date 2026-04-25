@@ -130,6 +130,15 @@ def _parse_decimal_input(value, fallback="0"):
 	return Decimal(text.replace(",", "."))
 
 
+def _dividir_em_parcelas(valor_total, parcelas):
+	parcelas = max(1, int(parcelas or 1))
+	valor_base = (valor_total / Decimal(parcelas)).quantize(Decimal("0.01"))
+	valores = [valor_base for _ in range(parcelas)]
+	diferenca = valor_total - sum(valores)
+	valores[-1] = (valores[-1] + diferenca).quantize(Decimal("0.01"))
+	return valores
+
+
 def _querystring_without_page(request):
 	params = request.GET.copy()
 	params.pop("page", None)
@@ -687,6 +696,7 @@ def lista_vendas(request):
 			"clientes": Cliente.objects.order_by("nome"),
 			"formas_pagamento": Venda.FORMA_PAGAMENTO,
 			"aba_pdv": request.GET.get("pdv") == "1",
+			"hoje_iso": date.today().isoformat(),
 		},
 	)
 
@@ -696,23 +706,46 @@ def venda_nova(request):
 	produtos = Produto.objects.filter(ativo=True).order_by("nome")
 	clientes = Cliente.objects.order_by("nome")
 
+	def _redirect_form(origem_pdv=False):
+		if origem_pdv:
+			return redirect("/painel/vendas/?pdv=1")
+		return redirect("venda_nova")
+
 	if request.method == "POST":
+		origem_pdv = request.POST.get("origem_fluxo") == "pdv"
 		forma_pagamento = request.POST.get("forma_pagamento", "dinheiro")
 		formas_validas = {valor for valor, _ in Venda.FORMA_PAGAMENTO}
 		if forma_pagamento not in formas_validas:
 			messages.error(request, "Forma de pagamento inválida.")
-			return redirect("venda_nova")
+			return _redirect_form(origem_pdv)
 
 		try:
 			desconto = _parse_decimal_input(request.POST.get("desconto", "0"), "0")
 		except InvalidOperation:
 			messages.error(request, "Desconto inválido.")
-			return redirect("venda_nova")
+			return _redirect_form(origem_pdv)
 
 		cliente = None
 		cliente_id = request.POST.get("cliente_id", "").strip()
 		if cliente_id:
 			cliente = Cliente.objects.filter(pk=cliente_id).first()
+
+		parcelas_fiado = 1
+		primeiro_vencimento_fiado = None
+		if forma_pagamento == "fiado":
+			if not cliente:
+				messages.error(request, "Para venda fiado, selecione um cliente.")
+				return _redirect_form(origem_pdv)
+			try:
+				parcelas_fiado = int(request.POST.get("fiado_parcelas", "1") or "1")
+			except ValueError:
+				parcelas_fiado = 1
+			parcelas_fiado = max(1, parcelas_fiado)
+			try:
+				primeiro_vencimento_fiado = date.fromisoformat(request.POST.get("fiado_primeiro_vencimento", ""))
+			except ValueError:
+				messages.error(request, "Informe a data do primeiro pagamento do fiado.")
+				return _redirect_form(origem_pdv)
 
 		itens_solicitados = []
 		for key, value in request.POST.items():
@@ -728,7 +761,7 @@ def venda_nova(request):
 
 		if not itens_solicitados:
 			messages.error(request, "Informe ao menos um item com quantidade maior que zero.")
-			return redirect("venda_nova")
+			return _redirect_form(origem_pdv)
 
 		produtos_map = {
 			p.id: p for p in Produto.objects.filter(id__in=[pid for pid, _ in itens_solicitados], ativo=True)
@@ -738,10 +771,10 @@ def venda_nova(request):
 			produto = produtos_map.get(produto_id)
 			if not produto:
 				messages.error(request, "Um dos produtos selecionados não está disponível.")
-				return redirect("venda_nova")
+				return _redirect_form(origem_pdv)
 			if qtd > produto.estoque:
 				messages.error(request, f"Estoque insuficiente para {produto.nome}. Disponível: {produto.estoque}.")
-				return redirect("venda_nova")
+				return _redirect_form(origem_pdv)
 
 		status_venda = "pendente" if forma_pagamento == "fiado" else "concluida"
 
@@ -772,7 +805,27 @@ def venda_nova(request):
 					responsavel=request.user.username,
 				)
 
+			if forma_pagamento == "fiado":
+				grupo = uuid4().hex[:12]
+				valores_parcelas = _dividir_em_parcelas(venda.total, parcelas_fiado)
+				for idx, valor_parcela in enumerate(valores_parcelas):
+					FiadoConta.objects.create(
+						cliente=cliente,
+						referencia=f"Venda #{venda.id} - Parcela {idx + 1}/{parcelas_fiado}",
+						valor_total=valor_parcela,
+						valor_pago=Decimal("0.00"),
+						vencimento=_add_months(primeiro_vencimento_fiado, idx),
+						status="pendente",
+						observacao=request.POST.get("observacao", "").strip(),
+						grupo_referencia=grupo,
+						parcela_numero=idx + 1,
+						parcelas_total=parcelas_fiado,
+					)
+
 		messages.success(request, f"Venda #{venda.id} criada com sucesso.")
+		if forma_pagamento == "fiado":
+			messages.info(request, "Parcelas de fiado geradas automaticamente no Controle de Fiado.")
+			return redirect("lista_fiados")
 		return redirect("venda_detalhe", pk=venda.pk)
 
 	return render(
@@ -1099,12 +1152,36 @@ def cliente_detalhe(request, pk):
 @staff_member_required(login_url="/admin/login/")
 def lista_fiados(request):
 	hoje = date.today()
-	fiados = FiadoConta.objects.select_related("cliente").all()
+	fiados = FiadoConta.objects.select_related("cliente").order_by("cliente__nome", "vencimento", "id")
+
+	grupos_clientes = []
+	grupo_atual = None
+	for item in fiados:
+		if not grupo_atual or grupo_atual["cliente"].id != item.cliente.id:
+			grupo_atual = {
+				"cliente": item.cliente,
+				"itens": [],
+				"total_geral": Decimal("0.00"),
+				"total_aberto": Decimal("0.00"),
+				"qtd_vencidos": 0,
+				"qtd_alerta": 0,
+			}
+			grupos_clientes.append(grupo_atual)
+
+		grupo_atual["itens"].append(item)
+		grupo_atual["total_geral"] += item.valor_total
+		if item.status in {"pendente", "parcial"}:
+			grupo_atual["total_aberto"] += item.falta_pagar
+			if item.dias_para_vencer < 0:
+				grupo_atual["qtd_vencidos"] += 1
+			elif item.dias_para_vencer <= 3:
+				grupo_atual["qtd_alerta"] += 1
+
 	return render(
 		request,
 		"admin_panel/lista_fiados.html",
 		{
-			"fiados": fiados,
+			"grupos_clientes": grupos_clientes,
 			"qtd_alerta": sum(1 for f in fiados if f.status in {"pendente", "parcial"} and 0 <= f.dias_para_vencer <= 3),
 			"qtd_vencidos": sum(1 for f in fiados if f.status in {"pendente", "parcial"} and f.dias_para_vencer < 0),
 			"hoje": hoje,
@@ -1123,27 +1200,37 @@ def fiado_form(request):
 		try:
 			cliente = get_object_or_404(Cliente, pk=cliente_id)
 			valor_total = _parse_decimal_input(request.POST.get("valor_total", "0"), "0")
-			valor_pago = _parse_decimal_input(request.POST.get("valor_pago", "0"), "0")
 			vencimento = date.fromisoformat(request.POST.get("vencimento", ""))
+			parcelas = int(request.POST.get("parcelas", "1") or "1")
 		except (InvalidOperation, ValueError):
-			messages.error(request, "Dados invalidos no cadastro de fiado. Revise valores e vencimento.")
+			messages.error(request, "Dados invalidos no cadastro de fiado. Revise valores, parcelas e vencimento.")
 			return redirect("fiado_novo")
 
-		FiadoConta.objects.create(
-			cliente=cliente,
-			referencia=request.POST.get("referencia", "").strip(),
-			valor_total=valor_total,
-			valor_pago=valor_pago,
-			vencimento=vencimento,
-			status=request.POST.get("status", "pendente"),
-			observacao=request.POST.get("observacao", "").strip(),
-		)
-		messages.success(request, "Conta fiado registrada.")
+		parcelas = max(1, parcelas)
+		grupo = uuid4().hex[:12]
+		valores_parcelas = _dividir_em_parcelas(valor_total, parcelas)
+		referencia = request.POST.get("referencia", "").strip() or "Lançamento manual"
+		observacao = request.POST.get("observacao", "").strip()
+
+		for idx, valor_parcela in enumerate(valores_parcelas):
+			FiadoConta.objects.create(
+				cliente=cliente,
+				referencia=f"{referencia} - Parcela {idx + 1}/{parcelas}",
+				valor_total=valor_parcela,
+				valor_pago=Decimal("0.00"),
+				vencimento=_add_months(vencimento, idx),
+				status="pendente",
+				observacao=observacao,
+				grupo_referencia=grupo,
+				parcela_numero=idx + 1,
+				parcelas_total=parcelas,
+			)
+		messages.success(request, f"Conta fiado registrada com {parcelas} parcela(s).")
 		return redirect("lista_fiados")
 	return render(
 		request,
 		"admin_panel/fiado_form.html",
-		{"clientes": Cliente.objects.all().order_by("nome"), "status_choices": FiadoConta.STATUS},
+		{"clientes": Cliente.objects.all().order_by("nome")},
 	)
 
 
