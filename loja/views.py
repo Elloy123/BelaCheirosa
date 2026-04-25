@@ -864,6 +864,37 @@ def venda_detalhe(request, pk):
 
 
 @staff_member_required(login_url="/admin/login/")
+def venda_excluir(request, pk):
+	if request.method != "POST":
+		return redirect("lista_vendas")
+
+	venda = get_object_or_404(
+		Venda.objects.select_related("cliente").prefetch_related("itens__produto"),
+		pk=pk,
+	)
+
+	with transaction.atomic():
+		for item in venda.itens.all():
+			produto = item.produto
+			produto.estoque += item.quantidade
+			produto.vendas = max(0, produto.vendas - item.quantidade)
+			produto.save(update_fields=["estoque", "vendas"])
+			MovimentacaoEstoque.objects.create(
+				produto=produto,
+				tipo="ajuste",
+				quantidade=produto.estoque,
+				observacao=f"Estorno exclusão venda #{venda.id}",
+				responsavel=request.user.username,
+			)
+
+		FiadoConta.objects.filter(referencia__startswith=f"Venda #{venda.id} - ").delete()
+		venda.delete()
+
+	messages.success(request, f"Venda #{pk} excluída com sucesso.")
+	return redirect("lista_vendas")
+
+
+@staff_member_required(login_url="/admin/login/")
 def venda_pdf(request, pk):
 	venda = get_object_or_404(
 		Venda.objects.select_related("cliente").prefetch_related("itens__produto"),

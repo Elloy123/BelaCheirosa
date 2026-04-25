@@ -16,6 +16,7 @@ urlpatterns = [
     path("painel/completo/", views.dashboard_completo, name="dashboard_completo"),
     path("painel/vendas/", views.lista_vendas, name="lista_vendas"),
     path("painel/vendas/nova/", views.venda_nova, name="venda_nova"),
+    path("painel/vendas/<int:pk>/excluir/", views.venda_excluir, name="venda_excluir"),
     path("painel/pedidos/", views.lista_pedidos, name="lista_pedidos"),
     path("painel/pedidos/<int:pk>/status/", views.pedido_atualizar_status, name="pedido_atualizar_status"),
     path("painel/vendas/<int:pk>/", views.venda_detalhe, name="venda_detalhe"),
