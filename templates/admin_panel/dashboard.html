@@ -3,7 +3,9 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h1 class="h4 text-rose mb-0">Dashboard</h1>
-  <a class="btn btn-rose" href="{% url 'dashboard_completo' %}">Dashboard completo</a>
+  <button class="btn btn-rose" type="button" data-bs-toggle="collapse" data-bs-target="#analiseCompleta" aria-expanded="false" aria-controls="analiseCompleta">
+    Análise completa ▾
+  </button>
 </div>
 <div class="row g-3 mb-4">
   <div class="col-md-3"><div class="card admin-kpi-card"><div class="card-body"><small>Faturamento Hoje</small><div class="fs-4 fw-bold">R$ {{ faturamento_hoje|floatformat:2 }}</div></div></div></div>
@@ -16,7 +18,7 @@
   <div class="col-md-4"><div class="card admin-kpi-card"><div class="card-body"><small>Fiados vencendo (3 dias)</small><div class="fs-4 fw-bold text-warning">{{ fiados_alerta }}</div></div></div></div>
   <div class="col-md-4"><div class="card admin-kpi-card"><div class="card-body"><small>Boletos vencendo (3 dias)</small><div class="fs-4 fw-bold text-danger">{{ boletos_alerta }}</div></div></div></div>
 </div>
-<div class="row g-3">
+<div class="row g-3 mb-4">
   <div class="col-lg-7">
     <div class="card admin-shell-card">
       <div class="card-header bg-white">Últimas vendas</div>
@@ -40,4 +42,87 @@
     </div>
   </div>
 </div>
+
+<!-- ===== ANÁLISE COMPLETA (colapsável) ===== -->
+<div class="collapse" id="analiseCompleta">
+  <hr class="my-3">
+  <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+    <span class="small text-muted fw-semibold">Período de análise:</span>
+    <a class="btn btn-sm {% if periodo == '7d' %}btn-rose{% else %}btn-outline-secondary{% endif %}" href="?periodo=7d#analiseCompleta">Últimos 7 dias</a>
+    <a class="btn btn-sm {% if periodo == '30d' %}btn-rose{% else %}btn-outline-secondary{% endif %}" href="?periodo=30d#analiseCompleta">Últimos 30 dias</a>
+    <a class="btn btn-sm {% if periodo == 'mes' %}btn-rose{% else %}btn-outline-secondary{% endif %}" href="?periodo=mes#analiseCompleta">Mês atual</a>
+    <span class="badge text-bg-light border">{{ periodo_label }}</span>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-md-3"><div class="card admin-kpi-card"><div class="card-body"><small>Estoque a preço de venda</small><div class="fs-5 fw-bold">R$ {{ total_venda_estoque|floatformat:2 }}</div></div></div></div>
+    <div class="col-md-3"><div class="card admin-kpi-card"><div class="card-body"><small>Estoque a preço de custo</small><div class="fs-5 fw-bold">R$ {{ total_custo_estoque|floatformat:2 }}</div></div></div></div>
+    <div class="col-md-3"><div class="card admin-kpi-card"><div class="card-body"><small>Lucro potencial estoque</small><div class="fs-5 fw-bold text-success">R$ {{ lucro_potencial_estoque|floatformat:2 }}</div></div></div></div>
+    <div class="col-md-3"><div class="card admin-kpi-card"><div class="card-body"><small>Margem potencial</small><div class="fs-5 fw-bold">{{ margem_potencial_pct|floatformat:2 }}%</div></div></div></div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-md-3"><div class="card admin-kpi-card"><div class="card-body"><small>Receita ({{ periodo_label }})</small><div class="fs-5 fw-bold">R$ {{ receita_vendas|floatformat:2 }}</div></div></div></div>
+    <div class="col-md-3"><div class="card admin-kpi-card"><div class="card-body"><small>Custo vendido ({{ periodo_label }})</small><div class="fs-5 fw-bold">R$ {{ custo_vendas|floatformat:2 }}</div></div></div></div>
+    <div class="col-md-3"><div class="card admin-kpi-card"><div class="card-body"><small>Lucro real ({{ periodo_label }})</small><div class="fs-5 fw-bold text-success">R$ {{ lucro_real|floatformat:2 }}</div></div></div></div>
+    <div class="col-md-3"><div class="card admin-kpi-card"><div class="card-body"><small>Taxa de lucro real</small><div class="fs-5 fw-bold">{{ taxa_lucro_real_pct|floatformat:2 }}%</div></div></div></div>
+  </div>
+
+  <div class="card admin-shell-card mb-3">
+    <div class="card-header bg-white">Análise automática</div>
+    <ul class="list-group list-group-flush">
+      {% for insight in insights %}
+      <li class="list-group-item">{{ insight }}</li>
+      {% empty %}
+      <li class="list-group-item text-muted">Sem dados suficientes para análise no momento.</li>
+      {% endfor %}
+    </ul>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-lg-6">
+      <div class="card admin-shell-card h-100">
+        <div class="card-header bg-white">Mais acessados (acumulado)</div>
+        <div class="table-responsive">
+          <table class="table admin-table mb-0">
+            <thead><tr><th>Produto</th><th class="text-end">Visitas</th><th class="text-end">Vendas</th></tr></thead>
+            <tbody>
+              {% for p in mais_acessados %}
+              <tr><td>{{ p.nome }}</td><td class="text-end">{{ p.visualizacoes }}</td><td class="text-end">{{ p.vendas }}</td></tr>
+              {% empty %}<tr><td colspan="3" class="text-center py-3 text-muted">Sem dados.</td></tr>{% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card admin-shell-card h-100">
+        <div class="card-header bg-white">Mais comprados ({{ periodo_label }})</div>
+        <div class="table-responsive">
+          <table class="table admin-table mb-0">
+            <thead><tr><th>Produto</th><th class="text-end">Qtd</th><th class="text-end">Receita</th></tr></thead>
+            <tbody>
+              {% for p in mais_comprados %}
+              <tr><td>{{ p.produto__nome }}</td><td class="text-end">{{ p.qtd_total }}</td><td class="text-end">R$ {{ p.receita|floatformat:2 }}</td></tr>
+              {% empty %}<tr><td colspan="3" class="text-center py-3 text-muted">Sem vendas concluídas.</td></tr>{% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% block extra_js %}
+<script>
+// Abre o collapse automaticamente se um período foi selecionado via URL
+(function(){
+  const url = new URL(window.location.href);
+  if (url.searchParams.has('periodo') || window.location.hash === '#analiseCompleta') {
+    const el = document.getElementById('analiseCompleta');
+    if (el) { el.classList.add('show'); el.scrollIntoView({behavior:'smooth', block:'start'}); }
+  }
+})();
+</script>
+{% endblock %}
 {% endblock %}

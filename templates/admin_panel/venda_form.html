@@ -1,78 +1,239 @@
 {% extends 'admin_panel/base.html' %}
-{% block title %}Nova Venda{% endblock %}
+{% block title %}PDV – Nova Venda{% endblock %}
 {% block content %}
+
 <div class="d-flex justify-content-between align-items-center mb-3">
-  <h1 class="h4 text-rose mb-0">Adicionar venda</h1>
-  <a class="btn btn-outline-secondary" href="{% url 'lista_vendas' %}">Voltar para vendas</a>
+  <h1 class="h4 text-rose mb-0">Ponto de Venda (PDV)</h1>
+  <a class="btn btn-outline-secondary" href="{% url 'lista_vendas' %}">← Vendas</a>
 </div>
 
-<form method="post" class="card admin-shell-card border-0 shadow-sm mb-3">
+<form id="pdvForm" method="post" autocomplete="off">
   {% csrf_token %}
-  <div class="card-body">
-    <div class="row g-3 mb-3">
-      <div class="col-md-4">
-        <label class="form-label">Cliente</label>
-        <select class="form-select" name="cliente_id">
-          <option value="">Consumidor Final</option>
-          {% for c in clientes %}
-          <option value="{{ c.id }}">{{ c.nome }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="col-md-3">
-        <label class="form-label">Forma de pagamento</label>
-        <select class="form-select" name="forma_pagamento" required>
-          {% for v, l in formas_pagamento %}
-          <option value="{{ v }}">{{ l }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="col-md-2">
-        <label class="form-label">Desconto (R$)</label>
-        <input type="number" class="form-control" name="desconto" step="0.01" min="0" value="0">
-      </div>
-      <div class="col-md-3">
-        <label class="form-label">Observação</label>
-        <input type="text" class="form-control" name="observacao" maxlength="300" placeholder="Opcional">
+
+  <div class="row g-3 align-items-start">
+    <!-- ========== CATÁLOGO (esquerda) ========== -->
+    <div class="col-lg-7">
+      <div class="card admin-shell-card">
+        <div class="card-header bg-white pb-2">
+          <input id="pdvBusca" type="text" class="form-control" placeholder="🔍 Buscar produto por nome ou código...">
+        </div>
+        <div class="card-body p-2" style="max-height:68vh;overflow-y:auto;">
+          <div id="pdvProdutos" class="row g-2">
+            {% for p in produtos %}
+            <div class="col-6 col-md-4 produto-card"
+                 data-id="{{ p.id }}"
+                 data-nome="{{ p.nome|lower }}"
+                 data-codigo="{{ p.codigo|lower }}"
+                 data-estoque="{{ p.estoque }}"
+                 data-preco="{{ p.preco }}">
+              <div class="card h-100 border {% if p.estoque <= 0 %}border-secondary opacity-50{% else %}border-light{% endif %} shadow-none">
+                <div class="card-body p-2 d-flex flex-column">
+                  <div class="fw-semibold small lh-sm mb-1" style="min-height:2.4em;">{{ p.nome }}</div>
+                  <div class="text-rose fw-bold">R$ {{ p.preco|floatformat:2 }}</div>
+                  <div class="text-muted" style="font-size:.75rem;">Estoque: {{ p.estoque }}</div>
+                  <div class="mt-auto pt-2">
+                    {% if p.estoque > 0 %}
+                    <button type="button" class="btn btn-rose btn-sm w-100 btn-add-produto" data-id="{{ p.id }}" data-nome="{{ p.nome }}" data-preco="{{ p.preco }}" data-estoque="{{ p.estoque }}">+ Adicionar</button>
+                    {% else %}
+                    <button type="button" class="btn btn-secondary btn-sm w-100" disabled>Esgotado</button>
+                    {% endif %}
+                  </div>
+                </div>
+              </div>
+            </div>
+            {% empty %}
+            <p class="text-muted p-3">Nenhum produto ativo cadastrado.</p>
+            {% endfor %}
+          </div>
+        </div>
       </div>
     </div>
 
-    <div class="table-responsive">
-      <table class="table admin-table align-middle">
-        <thead><tr><th>Produto</th><th>Preço</th><th>Estoque</th><th style="width: 120px;">Quantidade</th></tr></thead>
-        <tbody>
-          {% for p in produtos %}
-          <tr>
-            <td>{{ p.nome }}</td>
-            <td>R$ {{ p.preco|floatformat:2 }}</td>
-            <td>
-              {{ p.estoque }}
-              {% if p.estoque <= 0 %}
-              <span class="badge rounded-pill text-bg-danger ms-1">Esgotado</span>
-              {% endif %}
-            </td>
-            <td>
-              <input
-                type="number"
-                class="form-control form-control-sm"
-                name="qtd_{{ p.id }}"
-                min="0"
-                max="{{ p.estoque }}"
-                value="0"
-                {% if p.estoque <= 0 %}disabled{% endif %}
-              >
-            </td>
-          </tr>
-          {% empty %}
-          <tr><td colspan="4" class="text-center py-4 text-muted">Sem produtos ativos para venda.</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
+    <!-- ========== CARRINHO / FINALIZAÇÃO (direita) ========== -->
+    <div class="col-lg-5">
+      <div class="card admin-shell-card">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+          <strong>Carrinho</strong>
+          <button type="button" class="btn btn-sm btn-outline-danger" id="btnLimparCarrinho">Limpar</button>
+        </div>
+        <div class="card-body p-0" style="max-height:35vh;overflow-y:auto;">
+          <table class="table table-sm mb-0 admin-table" id="tbCarrinho">
+            <thead><tr><th>Produto</th><th class="text-center" style="width:90px;">Qtd</th><th class="text-end">Subtotal</th><th></th></tr></thead>
+            <tbody id="carrinhoBody">
+              <tr id="trVazio"><td colspan="4" class="text-center text-muted py-3 small">Nenhum item adicionado.</td></tr>
+            </tbody>
+          </table>
+        </div>
 
-    <div class="d-flex justify-content-end mt-3">
-      <button class="btn btn-rose">Salvar venda</button>
+        <div class="card-body border-top py-2">
+          <!-- Pagamento e cliente -->
+          <div class="row g-2 mb-2">
+            <div class="col-7">
+              <label class="form-label small mb-1">Cliente</label>
+              <select class="form-select form-select-sm" name="cliente_id" id="pdvCliente">
+                <option value="">Consumidor Final</option>
+                {% for c in clientes %}<option value="{{ c.id }}">{{ c.nome }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="col-5">
+              <label class="form-label small mb-1">Pagamento</label>
+              <select class="form-select form-select-sm" name="forma_pagamento" id="pdvPagamento" required>
+                {% for v, l in formas_pagamento %}<option value="{{ v }}">{{ l }}</option>{% endfor %}
+              </select>
+            </div>
+          </div>
+          <div class="row g-2 mb-2">
+            <div class="col-5">
+              <label class="form-label small mb-1">Desconto (R$)</label>
+              <input type="number" class="form-control form-control-sm" name="desconto" id="pdvDesconto" step="0.01" min="0" value="0">
+            </div>
+            <div class="col-7">
+              <label class="form-label small mb-1">Observação</label>
+              <input type="text" class="form-control form-control-sm" name="observacao" maxlength="300" placeholder="Opcional">
+            </div>
+          </div>
+
+          <!-- Totais -->
+          <div class="bg-light rounded p-2 mb-2">
+            <div class="d-flex justify-content-between small"><span>Subtotal:</span><span id="lblSubtotal">R$ 0,00</span></div>
+            <div class="d-flex justify-content-between small text-danger"><span>Desconto:</span><span id="lblDesconto">R$ 0,00</span></div>
+            <div class="d-flex justify-content-between fw-bold border-top mt-1 pt-1"><span>TOTAL:</span><span id="lblTotal" class="text-rose fs-5">R$ 0,00</span></div>
+          </div>
+
+          <!-- Troco (apenas dinheiro) -->
+          <div id="trocoWrap" class="row g-2 mb-2 d-none">
+            <div class="col-6">
+              <label class="form-label small mb-1">Valor pago (R$)</label>
+              <input type="number" class="form-control form-control-sm" id="pdvPago" step="0.01" min="0" value="">
+            </div>
+            <div class="col-6 d-flex flex-column justify-content-end">
+              <div class="bg-success text-white rounded p-2 text-center small fw-bold">Troco: <span id="lblTroco">R$ 0,00</span></div>
+            </div>
+          </div>
+
+          <button class="btn btn-rose w-100 mt-1" id="btnFinalizar" type="submit" disabled>
+            Finalizar venda
+          </button>
+        </div>
+      </div>
     </div>
   </div>
+
+  <!-- Inputs ocultos gerados pelo JS -->
+  <div id="qtdHiddens"></div>
 </form>
+
+{% endblock %}
+{% block extra_js %}
+<script>
+(function(){
+  const carrinho = {};  // { id: { nome, preco, qtd, estoque } }
+
+  function fmt(v){ return 'R$ ' + Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+
+  function renderCarrinho(){
+    const tbody = document.getElementById('carrinhoBody');
+    const trVazio = document.getElementById('trVazio');
+    const ids = Object.keys(carrinho);
+    tbody.querySelectorAll('tr.item-carrinho').forEach(r=>r.remove());
+    let subtotal = 0;
+    ids.forEach(id=>{
+      const it = carrinho[id];
+      subtotal += it.preco * it.qtd;
+      const tr = document.createElement('tr');
+      tr.className = 'item-carrinho';
+      tr.innerHTML = `
+        <td class="small">${it.nome}</td>
+        <td class="text-center">
+          <div class="input-group input-group-sm" style="width:82px;">
+            <button type="button" class="btn btn-outline-secondary py-0 px-1 btn-dec" data-id="${id}">−</button>
+            <input type="text" class="form-control form-control-sm text-center px-0 inp-qtd" value="${it.qtd}" data-id="${id}" readonly style="min-width:28px;">
+            <button type="button" class="btn btn-outline-secondary py-0 px-1 btn-inc" data-id="${id}">+</button>
+          </div>
+        </td>
+        <td class="text-end small">${fmt(it.preco * it.qtd)}</td>
+        <td><button type="button" class="btn btn-sm btn-link text-danger p-0 btn-rem" data-id="${id}">✕</button></td>`;
+      tbody.appendChild(tr);
+    });
+    trVazio.style.display = ids.length ? 'none' : '';
+    atualizarTotais(subtotal);
+    atualizarHiddens();
+    document.getElementById('btnFinalizar').disabled = ids.length === 0;
+  }
+
+  function atualizarTotais(subtotal){
+    const desc = Math.max(0, parseFloat(document.getElementById('pdvDesconto').value)||0);
+    const total = Math.max(0, subtotal - desc);
+    document.getElementById('lblSubtotal').textContent = fmt(subtotal);
+    document.getElementById('lblDesconto').textContent = fmt(desc);
+    document.getElementById('lblTotal').textContent = fmt(total);
+    calcTroco(total);
+  }
+
+  function calcTroco(total){
+    const pago = parseFloat(document.getElementById('pdvPago').value)||0;
+    document.getElementById('lblTroco').textContent = fmt(Math.max(0, pago - total));
+  }
+
+  function atualizarHiddens(){
+    const wrap = document.getElementById('qtdHiddens');
+    wrap.innerHTML = '';
+    Object.keys(carrinho).forEach(id=>{
+      const inp = document.createElement('input');
+      inp.type = 'hidden';
+      inp.name = 'qtd_' + id;
+      inp.value = carrinho[id].qtd;
+      wrap.appendChild(inp);
+    });
+  }
+
+  function addItem(id, nome, preco, estoque){
+    if(carrinho[id]){
+      if(carrinho[id].qtd < estoque) carrinho[id].qtd++;
+    } else {
+      carrinho[id] = {nome, preco:parseFloat(preco), qtd:1, estoque:parseInt(estoque)};
+    }
+    renderCarrinho();
+  }
+
+  // Delegação de eventos no carrinho
+  document.getElementById('carrinhoBody').addEventListener('click', function(e){
+    const id = e.target.dataset.id;
+    if(e.target.classList.contains('btn-inc')){ if(carrinho[id] && carrinho[id].qtd < carrinho[id].estoque) carrinho[id].qtd++; renderCarrinho(); }
+    if(e.target.classList.contains('btn-dec')){ if(carrinho[id]){ carrinho[id].qtd--; if(carrinho[id].qtd<=0) delete carrinho[id]; } renderCarrinho(); }
+    if(e.target.classList.contains('btn-rem')){ delete carrinho[id]; renderCarrinho(); }
+  });
+
+  // Botões "+ Adicionar"
+  document.querySelectorAll('.btn-add-produto').forEach(btn=>{
+    btn.addEventListener('click', ()=> addItem(btn.dataset.id, btn.dataset.nome, btn.dataset.preco, btn.dataset.estoque));
+  });
+
+  // Limpar carrinho
+  document.getElementById('btnLimparCarrinho').addEventListener('click', ()=>{ Object.keys(carrinho).forEach(k=>delete carrinho[k]); renderCarrinho(); });
+
+  // Desconto e valor pago disparam recálculo
+  document.getElementById('pdvDesconto').addEventListener('input', ()=>renderCarrinho());
+  document.getElementById('pdvPago').addEventListener('input', ()=>{
+    const desc = Math.max(0,parseFloat(document.getElementById('pdvDesconto').value)||0);
+    const sub = Object.values(carrinho).reduce((s,it)=>s+it.preco*it.qtd,0);
+    calcTroco(Math.max(0,sub-desc));
+  });
+
+  // Exibir seção troco quando forma = dinheiro
+  document.getElementById('pdvPagamento').addEventListener('change', function(){
+    const wrap = document.getElementById('trocoWrap');
+    wrap.classList.toggle('d-none', this.value !== 'dinheiro');
+  });
+
+  // Busca de produto
+  document.getElementById('pdvBusca').addEventListener('input', function(){
+    const q = this.value.toLowerCase().trim();
+    document.querySelectorAll('.produto-card').forEach(el=>{
+      const match = !q || el.dataset.nome.includes(q) || el.dataset.codigo.includes(q);
+      el.style.display = match ? '' : 'none';
+    });
+  });
+})();
+</script>
 {% endblock %}

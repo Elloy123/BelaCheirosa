@@ -290,6 +290,12 @@ h1, h2, h3, h4, h5, h6,
   color: #f4dbe6;
 }
 
+.produto-descricao {
+  text-align: justify;
+  line-height: 1.75;
+  white-space: pre-line;
+}
+
 .feature-box {
   height: 100%;
   border: 1px solid rgba(255, 255, 255, 0.15);

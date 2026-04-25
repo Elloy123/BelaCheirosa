@@ -412,10 +412,98 @@ def checkout(request):
 	return redirect(url)
 
 
+def _calcular_dashboard_completo(periodo, hoje):
+	"""Retorna dict com dados do dashboard completo para um período."""
+	periodos = {
+		"7d": {"label": "Últimos 7 dias", "inicio": hoje - timedelta(days=6)},
+		"30d": {"label": "Últimos 30 dias", "inicio": hoje - timedelta(days=29)},
+		"mes": {"label": "Mês atual", "inicio": hoje.replace(day=1)},
+	}
+	if periodo not in periodos:
+		periodo = "mes"
+	periodo_info = periodos[periodo]
+	data_inicio = periodo_info["inicio"]
+
+	produtos_ativos = Produto.objects.filter(ativo=True)
+	valor_venda_expr = ExpressionWrapper(
+		F("preco") * F("estoque"), output_field=DecimalField(max_digits=14, decimal_places=2)
+	)
+	valor_custo_expr = ExpressionWrapper(
+		F("custo") * F("estoque"), output_field=DecimalField(max_digits=14, decimal_places=2)
+	)
+	resumo_estoque = produtos_ativos.aggregate(
+		total_venda=Coalesce(Sum(valor_venda_expr), Value(Decimal("0.00")), output_field=DecimalField(max_digits=14, decimal_places=2)),
+		total_custo=Coalesce(Sum(valor_custo_expr), Value(Decimal("0.00")), output_field=DecimalField(max_digits=14, decimal_places=2)),
+	)
+	total_venda_estoque = resumo_estoque["total_venda"]
+	total_custo_estoque = resumo_estoque["total_custo"]
+	lucro_potencial_estoque = total_venda_estoque - total_custo_estoque
+	margem_potencial_pct = (
+		(lucro_potencial_estoque / total_custo_estoque) * Decimal("100")
+		if total_custo_estoque > 0 else Decimal("0")
+	)
+
+	vendas_periodo = Venda.objects.filter(status="concluida", data__date__gte=data_inicio, data__date__lte=hoje)
+	itens_periodo = ItemVenda.objects.filter(venda__in=vendas_periodo).select_related("produto")
+	receita_expr = ExpressionWrapper(F("preco_unitario") * F("quantidade"), output_field=DecimalField(max_digits=14, decimal_places=2))
+	custo_expr = ExpressionWrapper(F("produto__custo") * F("quantidade"), output_field=DecimalField(max_digits=14, decimal_places=2))
+
+	resumo_vendas = itens_periodo.aggregate(
+		receita=Coalesce(Sum(receita_expr), Value(Decimal("0.00")), output_field=DecimalField(max_digits=14, decimal_places=2)),
+		custo=Coalesce(Sum(custo_expr), Value(Decimal("0.00")), output_field=DecimalField(max_digits=14, decimal_places=2)),
+	)
+	receita_vendas = resumo_vendas["receita"]
+	custo_vendas = resumo_vendas["custo"]
+	lucro_real = receita_vendas - custo_vendas
+	taxa_lucro_real_pct = (
+		(lucro_real / custo_vendas) * Decimal("100") if custo_vendas > 0 else Decimal("0")
+	)
+
+	mais_acessados = produtos_ativos.order_by("-visualizacoes", "-vendas", "nome")[:10]
+	mais_comprados = (
+		itens_periodo
+		.values("produto__id", "produto__nome")
+		.annotate(
+			qtd_total=Coalesce(Sum("quantidade"), 0),
+			receita=Coalesce(Sum(receita_expr), Value(Decimal("0.00")), output_field=DecimalField(max_digits=14, decimal_places=2)),
+		)
+		.order_by("-qtd_total", "produto__nome")[:10]
+	)
+
+	insights = []
+	if total_custo_estoque > 0:
+		insights.append(f"Margem potencial do estoque atual: {margem_potencial_pct:.2f}% sobre o custo.")
+	if custo_vendas > 0:
+		insights.append(f"Taxa de lucro real em {periodo_info['label'].lower()}: {taxa_lucro_real_pct:.2f}%.")
+	else:
+		insights.append(f"Não há vendas concluídas em {periodo_info['label'].lower()} para calcular lucro real.")
+	if mais_acessados and mais_acessados[0].visualizacoes > 0:
+		insights.append(f"Produto mais acessado: {mais_acessados[0].nome} com {mais_acessados[0].visualizacoes} visualizações.")
+	if mais_comprados:
+		insights.append(f"Produto mais comprado em {periodo_info['label'].lower()}: {mais_comprados[0]['produto__nome']} com {mais_comprados[0]['qtd_total']} unidades.")
+
+	return {
+		"total_venda_estoque": total_venda_estoque,
+		"total_custo_estoque": total_custo_estoque,
+		"lucro_potencial_estoque": lucro_potencial_estoque,
+		"margem_potencial_pct": margem_potencial_pct,
+		"receita_vendas": receita_vendas,
+		"custo_vendas": custo_vendas,
+		"lucro_real": lucro_real,
+		"taxa_lucro_real_pct": taxa_lucro_real_pct,
+		"mais_acessados": mais_acessados,
+		"mais_comprados": mais_comprados,
+		"insights": insights,
+		"periodo": periodo,
+		"periodo_label": periodo_info["label"],
+	}
+
+
 @staff_member_required(login_url="/admin/login/")
 def dashboard(request):
 	hoje = timezone.now().date()
 	inicio_mes = hoje.replace(day=1)
+	periodo = request.GET.get("periodo", "mes")
 
 	vendas_hoje = Venda.objects.filter(data__date=hoje, status="concluida")
 	vendas_mes = Venda.objects.filter(data__date__gte=inicio_mes, status="concluida")
@@ -426,18 +514,10 @@ def dashboard(request):
 	faturamento_mes_bruto = _sum_subtotal_itens(itens_mes)
 
 	desconto_hoje = vendas_hoje.aggregate(
-		total=Coalesce(
-			Sum("desconto"),
-			Value(Decimal("0.00")),
-			output_field=DecimalField(max_digits=14, decimal_places=2),
-		)
+		total=Coalesce(Sum("desconto"), Value(Decimal("0.00")), output_field=DecimalField(max_digits=14, decimal_places=2))
 	)["total"]
 	desconto_mes = vendas_mes.aggregate(
-		total=Coalesce(
-			Sum("desconto"),
-			Value(Decimal("0.00")),
-			output_field=DecimalField(max_digits=14, decimal_places=2),
-		)
+		total=Coalesce(Sum("desconto"), Value(Decimal("0.00")), output_field=DecimalField(max_digits=14, decimal_places=2))
 	)["total"]
 
 	lucro_expr = ExpressionWrapper(
@@ -445,11 +525,7 @@ def dashboard(request):
 		output_field=DecimalField(max_digits=14, decimal_places=2),
 	)
 	lucro_mes = itens_mes.aggregate(
-		total=Coalesce(
-			Sum(lucro_expr),
-			Value(Decimal("0.00")),
-			output_field=DecimalField(max_digits=14, decimal_places=2),
-		)
+		total=Coalesce(Sum(lucro_expr), Value(Decimal("0.00")), output_field=DecimalField(max_digits=14, decimal_places=2))
 	)["total"]
 
 	faturamento_hoje = faturamento_hoje_bruto - desconto_hoje
@@ -463,205 +539,45 @@ def dashboard(request):
 		.annotate(
 			qtd=Count("venda_id", distinct=True),
 			total=Coalesce(
-				Sum(
-					ExpressionWrapper(
-						F("preco_unitario") * F("quantidade"),
-						output_field=DecimalField(max_digits=14, decimal_places=2),
-					)
-				),
-				Value(Decimal("0.00")),
-				output_field=DecimalField(max_digits=14, decimal_places=2),
+				Sum(ExpressionWrapper(F("preco_unitario") * F("quantidade"), output_field=DecimalField(max_digits=14, decimal_places=2))),
+				Value(Decimal("0.00")), output_field=DecimalField(max_digits=14, decimal_places=2),
 			),
 		)
 		.order_by("-qtd")
 	)
-	vendas_por_forma = [
-		{
-			"forma_pagamento": row["venda__forma_pagamento"],
-			"qtd": row["qtd"],
-			"total": row["total"],
-		}
-		for row in vendas_por_forma_raw
-	]
+	vendas_por_forma = [{"forma_pagamento": r["venda__forma_pagamento"], "qtd": r["qtd"], "total": r["total"]} for r in vendas_por_forma_raw]
 
-	fiados_alerta = FiadoConta.objects.filter(
-		status__in=["pendente", "parcial"],
-		vencimento__lte=hoje + timedelta(days=3),
-	)
-	boletos_alerta = ContaPagar.objects.filter(
-		status__in=["pendente", "parcial"],
-		vencimento__lte=hoje + timedelta(days=3),
-	)
+	fiados_alerta = FiadoConta.objects.filter(status__in=["pendente", "parcial"], vencimento__lte=hoje + timedelta(days=3))
+	boletos_alerta = ContaPagar.objects.filter(status__in=["pendente", "parcial"], vencimento__lte=hoje + timedelta(days=3))
 	pedidos_pendentes = Pedido.objects.filter(status="pendente").count()
 
-	return render(
-		request,
-		"admin_panel/dashboard.html",
-		{
-			"faturamento_hoje": faturamento_hoje,
-			"faturamento_mes": faturamento_mes,
-			"lucro_mes": lucro_mes,
-			"qtd_vendas_hoje": vendas_hoje.count(),
-			"qtd_produtos": Produto.objects.filter(ativo=True).count(),
-			"qtd_clientes": Cliente.objects.count(),
-			"baixo_estoque": baixo_estoque[:8],
-			"qtd_baixo_estoque": baixo_estoque.count(),
-			"ultimas_vendas": ultimas_vendas,
-			"vendas_por_forma": vendas_por_forma,
-			"pedidos_pendentes": pedidos_pendentes,
-			"fiados_alerta": fiados_alerta.count(),
-			"boletos_alerta": boletos_alerta.count(),
-		},
-	)
+	analise = _calcular_dashboard_completo(periodo, hoje)
+
+	ctx = {
+		"faturamento_hoje": faturamento_hoje,
+		"faturamento_mes": faturamento_mes,
+		"lucro_mes": lucro_mes,
+		"qtd_vendas_hoje": vendas_hoje.count(),
+		"qtd_produtos": Produto.objects.filter(ativo=True).count(),
+		"qtd_clientes": Cliente.objects.count(),
+		"baixo_estoque": baixo_estoque[:8],
+		"qtd_baixo_estoque": baixo_estoque.count(),
+		"ultimas_vendas": ultimas_vendas,
+		"vendas_por_forma": vendas_por_forma,
+		"pedidos_pendentes": pedidos_pendentes,
+		"fiados_alerta": fiados_alerta.count(),
+		"boletos_alerta": boletos_alerta.count(),
+	}
+	ctx.update(analise)
+	return render(request, "admin_panel/dashboard.html", ctx)
 
 
 @staff_member_required(login_url="/admin/login/")
 def dashboard_completo(request):
 	hoje = timezone.now().date()
 	periodo = request.GET.get("periodo", "mes")
-	periodos = {
-		"7d": {"label": "Últimos 7 dias", "inicio": hoje - timedelta(days=6)},
-		"30d": {"label": "Últimos 30 dias", "inicio": hoje - timedelta(days=29)},
-		"mes": {"label": "Mês atual", "inicio": hoje.replace(day=1)},
-	}
-	if periodo not in periodos:
-		periodo = "mes"
-	periodo_info = periodos[periodo]
-	data_inicio = periodo_info["inicio"]
-
-	produtos_ativos = Produto.objects.filter(ativo=True)
-
-	valor_venda_expr = ExpressionWrapper(
-		F("preco") * F("estoque"),
-		output_field=DecimalField(max_digits=14, decimal_places=2),
-	)
-	valor_custo_expr = ExpressionWrapper(
-		F("custo") * F("estoque"),
-		output_field=DecimalField(max_digits=14, decimal_places=2),
-	)
-
-	resumo_estoque = produtos_ativos.aggregate(
-		total_venda=Coalesce(
-			Sum(valor_venda_expr),
-			Value(Decimal("0.00")),
-			output_field=DecimalField(max_digits=14, decimal_places=2),
-		),
-		total_custo=Coalesce(
-			Sum(valor_custo_expr),
-			Value(Decimal("0.00")),
-			output_field=DecimalField(max_digits=14, decimal_places=2),
-		),
-	)
-
-	total_venda_estoque = resumo_estoque["total_venda"]
-	total_custo_estoque = resumo_estoque["total_custo"]
-	lucro_potencial_estoque = total_venda_estoque - total_custo_estoque
-	margem_potencial_pct = (
-		(lucro_potencial_estoque / total_custo_estoque) * Decimal("100")
-		if total_custo_estoque > 0
-		else Decimal("0")
-	)
-
-	vendas_periodo = Venda.objects.filter(
-		status="concluida",
-		data__date__gte=data_inicio,
-		data__date__lte=hoje,
-	)
-	itens_concluidos = ItemVenda.objects.filter(venda__in=vendas_periodo).select_related("produto")
-	receita_vendida_expr = ExpressionWrapper(
-		F("preco_unitario") * F("quantidade"),
-		output_field=DecimalField(max_digits=14, decimal_places=2),
-	)
-	custo_vendido_expr = ExpressionWrapper(
-		F("produto__custo") * F("quantidade"),
-		output_field=DecimalField(max_digits=14, decimal_places=2),
-	)
-
-	resumo_vendas = itens_concluidos.aggregate(
-		receita=Coalesce(
-			Sum(receita_vendida_expr),
-			Value(Decimal("0.00")),
-			output_field=DecimalField(max_digits=14, decimal_places=2),
-		),
-		custo=Coalesce(
-			Sum(custo_vendido_expr),
-			Value(Decimal("0.00")),
-			output_field=DecimalField(max_digits=14, decimal_places=2),
-		),
-	)
-
-	receita_vendas = resumo_vendas["receita"]
-	custo_vendas = resumo_vendas["custo"]
-	lucro_real = receita_vendas - custo_vendas
-	taxa_lucro_real_pct = (
-		(lucro_real / custo_vendas) * Decimal("100")
-		if custo_vendas > 0
-		else Decimal("0")
-	)
-
-	mais_acessados = produtos_ativos.order_by("-visualizacoes", "-vendas", "nome")[:10]
-	mais_comprados = (
-		itens_concluidos
-		.values("produto__id", "produto__nome", "produto__slug")
-		.annotate(
-			qtd_total=Coalesce(Sum("quantidade"), 0),
-			receita=Coalesce(
-				Sum(receita_vendida_expr),
-				Value(Decimal("0.00")),
-				output_field=DecimalField(max_digits=14, decimal_places=2),
-			),
-			custo=Coalesce(
-				Sum(custo_vendido_expr),
-				Value(Decimal("0.00")),
-				output_field=DecimalField(max_digits=14, decimal_places=2),
-			),
-		)
-		.order_by("-qtd_total", "produto__nome")[:10]
-	)
-
-	insights = []
-	if total_custo_estoque > 0:
-		insights.append(
-			f"Margem potencial do estoque atual: {margem_potencial_pct:.2f}% sobre o custo." 
-		)
-	if custo_vendas > 0:
-		insights.append(
-			f"Taxa de lucro real em {periodo_info['label'].lower()}: {taxa_lucro_real_pct:.2f}%."
-		)
-	else:
-		insights.append(
-			f"Não há vendas concluídas em {periodo_info['label'].lower()} para calcular lucro real."
-		)
-	if mais_acessados:
-		topo_acessado = mais_acessados[0]
-		insights.append(
-			f"Produto mais acessado (acumulado): {topo_acessado.nome} com {topo_acessado.visualizacoes} visualizações."
-		)
-	if mais_comprados:
-		topo_vendido = mais_comprados[0]
-		insights.append(
-			f"Produto mais comprado em {periodo_info['label'].lower()}: {topo_vendido['produto__nome']} com {topo_vendido['qtd_total']} unidades vendidas."
-		)
-
-	return render(
-		request,
-		"admin_panel/dashboard_completo.html",
-		{
-			"total_venda_estoque": total_venda_estoque,
-			"total_custo_estoque": total_custo_estoque,
-			"lucro_potencial_estoque": lucro_potencial_estoque,
-			"margem_potencial_pct": margem_potencial_pct,
-			"receita_vendas": receita_vendas,
-			"custo_vendas": custo_vendas,
-			"lucro_real": lucro_real,
-			"taxa_lucro_real_pct": taxa_lucro_real_pct,
-			"periodo": periodo,
-			"periodo_label": periodo_info["label"],
-			"mais_acessados": mais_acessados,
-			"mais_comprados": mais_comprados,
-			"insights": insights,
-		},
-	)
+	ctx = _calcular_dashboard_completo(periodo, hoje)
+	return render(request, "admin_panel/dashboard_completo.html", ctx)
 
 
 @staff_member_required(login_url="/admin/login/")
