@@ -1,4 +1,5 @@
 import io
+import re
 import sqlite3
 from decimal import Decimal, InvalidOperation
 from datetime import date, timedelta
@@ -137,6 +138,20 @@ def _dividir_em_parcelas(valor_total, parcelas):
 	diferenca = valor_total - sum(valores)
 	valores[-1] = (valores[-1] + diferenca).quantize(Decimal("0.01"))
 	return valores
+
+
+def _coletar_datas_parcelas(request, parcelas, prefixo="vencimento_parcela_"):
+	datas = []
+	for indice in range(parcelas):
+		valor = request.POST.get(f"{prefixo}{indice + 1}", "").strip()
+		if not valor:
+			raise ValueError()
+		datas.append(date.fromisoformat(valor))
+	return datas
+
+
+def _referencia_base_parcela(texto):
+	return re.sub(r"\s*-\s*Parcela\s+\d+/\d+$", "", texto or "")
 
 
 def _querystring_without_page(request):
@@ -1169,34 +1184,42 @@ def lista_fiados(request):
 	hoje = date.today()
 	fiados = FiadoConta.objects.select_related("cliente").order_by("cliente__nome", "vencimento", "id")
 
-	grupos_clientes = []
-	grupo_atual = None
+	grupos_referencia = []
+	mapa_grupos = {}
 	for item in fiados:
-		if not grupo_atual or grupo_atual["cliente"].id != item.cliente.id:
-			grupo_atual = {
+		chave = item.grupo_referencia or f"fiado-{item.id}"
+		grupo = mapa_grupos.get(chave)
+		if not grupo:
+			grupo = {
+				"chave": chave,
 				"cliente": item.cliente,
-				"itens": [],
+				"referencia": _referencia_base_parcela(item.referencia),
+				"parcelas": [],
 				"total_geral": Decimal("0.00"),
 				"total_aberto": Decimal("0.00"),
 				"qtd_vencidos": 0,
 				"qtd_alerta": 0,
+				"qtd_pagas": 0,
 			}
-			grupos_clientes.append(grupo_atual)
+			mapa_grupos[chave] = grupo
+			grupos_referencia.append(grupo)
 
-		grupo_atual["itens"].append(item)
-		grupo_atual["total_geral"] += item.valor_total
+		grupo["parcelas"].append(item)
+		grupo["total_geral"] += item.valor_total
+		if item.status == "pago":
+			grupo["qtd_pagas"] += 1
 		if item.status in {"pendente", "parcial"}:
-			grupo_atual["total_aberto"] += item.falta_pagar
+			grupo["total_aberto"] += item.falta_pagar
 			if item.dias_para_vencer < 0:
-				grupo_atual["qtd_vencidos"] += 1
+				grupo["qtd_vencidos"] += 1
 			elif item.dias_para_vencer <= 3:
-				grupo_atual["qtd_alerta"] += 1
+				grupo["qtd_alerta"] += 1
 
 	return render(
 		request,
 		"admin_panel/lista_fiados.html",
 		{
-			"grupos_clientes": grupos_clientes,
+			"grupos_referencia": grupos_referencia,
 			"qtd_alerta": sum(1 for f in fiados if f.status in {"pendente", "parcial"} and 0 <= f.dias_para_vencer <= 3),
 			"qtd_vencidos": sum(1 for f in fiados if f.status in {"pendente", "parcial"} and f.dias_para_vencer < 0),
 			"hoje": hoje,
@@ -1217,13 +1240,18 @@ def fiado_form(request):
 		try:
 			cliente = get_object_or_404(Cliente, pk=cliente_id)
 			valor_total = _parse_decimal_input(request.POST.get("valor_total", "0"), "0")
-			vencimento = date.fromisoformat(request.POST.get("vencimento", ""))
 			parcelas = int(request.POST.get("parcelas", "1") or "1")
 		except (InvalidOperation, ValueError):
-			messages.error(request, "Dados invalidos no cadastro de fiado. Revise valores, parcelas e vencimento.")
+			messages.error(request, "Dados invalidos no cadastro de fiado. Revise valores e parcelas.")
 			return redirect("fiado_novo")
 
 		parcelas = max(1, parcelas)
+		try:
+			vencimentos = _coletar_datas_parcelas(request, parcelas)
+		except ValueError:
+			messages.error(request, "Informe todas as datas de vencimento do fiado.")
+			return redirect("fiado_novo")
+
 		grupo = uuid4().hex[:12]
 		valores_parcelas = _dividir_em_parcelas(valor_total, parcelas)
 		referencia = request.POST.get("referencia", "").strip() or "Lançamento manual"
@@ -1235,7 +1263,7 @@ def fiado_form(request):
 				referencia=f"{referencia} - Parcela {idx + 1}/{parcelas}",
 				valor_total=valor_parcela,
 				valor_pago=Decimal("0.00"),
-				vencimento=_add_months(vencimento, idx),
+				vencimento=vencimentos[idx],
 				status="pendente",
 				observacao=observacao,
 				grupo_referencia=grupo,
@@ -1257,7 +1285,7 @@ def fiado_form(request):
 @staff_member_required(login_url="/admin/login/")
 def lista_contas_pagar(request):
 	hoje = date.today()
-	contas = ContaPagar.objects.all()
+	contas = ContaPagar.objects.all().order_by("fornecedor", "referencia", "parcela_numero", "vencimento", "id")
 
 	status = request.GET.get("status", "").strip()
 	pagamento_inicio = request.GET.get("pagamento_inicio", "").strip()
@@ -1283,11 +1311,42 @@ def lista_contas_pagar(request):
 	total_pago_periodo = contas.aggregate(total=Sum("valor_pago"))["total"] or Decimal("0")
 	qtd_pagamentos_periodo = contas.filter(data_pagamento__isnull=False).count()
 
+	grupos_boletos = []
+	mapa_grupos = {}
+	for conta in contas:
+		chave = conta.grupo_referencia or f"conta-{conta.id}"
+		grupo = mapa_grupos.get(chave)
+		if not grupo:
+			grupo = {
+				"chave": chave,
+				"fornecedor": conta.fornecedor,
+				"referencia": _referencia_base_parcela(conta.referencia),
+				"parcelas": [],
+				"total_geral": Decimal("0.00"),
+				"total_aberto": Decimal("0.00"),
+				"qtd_pagas": 0,
+				"qtd_vencidos": 0,
+				"qtd_alerta": 0,
+			}
+			mapa_grupos[chave] = grupo
+			grupos_boletos.append(grupo)
+
+		grupo["parcelas"].append(conta)
+		grupo["total_geral"] += conta.valor_total
+		if conta.status == "pago":
+			grupo["qtd_pagas"] += 1
+		if conta.status in {"pendente", "parcial"}:
+			grupo["total_aberto"] += conta.falta_pagar
+			if conta.dias_para_vencer < 0:
+				grupo["qtd_vencidos"] += 1
+			elif conta.dias_para_vencer <= 3:
+				grupo["qtd_alerta"] += 1
+
 	return render(
 		request,
 		"admin_panel/lista_contas_pagar.html",
 		{
-			"contas": contas,
+			"grupos_boletos": grupos_boletos,
 			"qtd_alerta": sum(1 for c in contas if c.status in {"pendente", "parcial"} and 0 <= c.dias_para_vencer <= 3),
 			"qtd_vencidos": sum(1 for c in contas if c.status in {"pendente", "parcial"} and c.dias_para_vencer < 0),
 			"status_choices": ContaPagar.STATUS,
@@ -1311,11 +1370,6 @@ def conta_pagar_form(request):
 		except InvalidOperation:
 			messages.error(request, "Valores invalidos para o boleto.")
 			return redirect("conta_pagar_novo")
-		try:
-			vencimento = date.fromisoformat(request.POST.get("vencimento", ""))
-		except ValueError:
-			messages.error(request, "Data de vencimento invalida.")
-			return redirect("conta_pagar_novo")
 		data_pagamento_raw = request.POST.get("data_pagamento", "").strip()
 		data_pagamento = None
 		if data_pagamento_raw:
@@ -1338,13 +1392,18 @@ def conta_pagar_form(request):
 			parcelas_pagas = 0
 		parcelas_pagas = max(0, min(parcelas_pagas, parcelas))
 
+		try:
+			vencimentos = _coletar_datas_parcelas(request, parcelas)
+		except ValueError:
+			messages.error(request, "Informe todas as datas de vencimento do boleto.")
+			return redirect("conta_pagar_novo")
+
 		if parcelas_pagas > 0 and not data_pagamento:
 			data_pagamento = date.today()
 
 		grupo = uuid4().hex[:12]
 		valores_parcelas = _dividir_em_parcelas(valor_total, parcelas)
 		for i, valor_parcela in enumerate(valores_parcelas):
-			vencimento_parcela = _add_months(vencimento, i)
 			parcela_ja_paga = i < parcelas_pagas
 			valor_pago_parcela = valor_parcela if parcela_ja_paga else Decimal("0")
 			status_parcela = _status_por_pagamento(valor_parcela, valor_pago_parcela)
@@ -1356,7 +1415,7 @@ def conta_pagar_form(request):
 				parcelas_total=parcelas,
 				valor_total=valor_parcela,
 				valor_pago=valor_pago_parcela,
-				vencimento=vencimento_parcela,
+				vencimento=vencimentos[i],
 				data_pagamento=data_pagamento if parcela_ja_paga else None,
 				status=status_parcela,
 				observacao=observacao,
@@ -1474,6 +1533,30 @@ def fiado_excluir(request, pk):
 	registro = get_object_or_404(FiadoConta, pk=pk)
 	registro.delete()
 	messages.success(request, "Registro de fiado excluido.")
+	return redirect("lista_fiados")
+
+
+@staff_member_required(login_url="/admin/login/")
+def fiado_atualizar_pagamento(request, pk):
+	if request.method != "POST":
+		return redirect("lista_fiados")
+
+	registro = get_object_or_404(FiadoConta, pk=pk)
+	data_pagamento_raw = request.POST.get("data_pagamento", "").strip()
+	if data_pagamento_raw:
+		try:
+			data_pagamento = date.fromisoformat(data_pagamento_raw)
+		except ValueError:
+			messages.error(request, "Data de pagamento invalida.")
+			return redirect("lista_fiados")
+	else:
+		data_pagamento = date.today()
+
+	registro.valor_pago = registro.valor_total
+	registro.data_pagamento = data_pagamento
+	registro.status = _status_por_pagamento(registro.valor_total, registro.valor_pago)
+	registro.save(update_fields=["valor_pago", "data_pagamento", "status"])
+	messages.success(request, f"Pagamento da parcela {registro.parcela_numero}/{registro.parcelas_total} salvo.")
 	return redirect("lista_fiados")
 
 

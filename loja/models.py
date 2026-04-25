@@ -251,6 +251,7 @@ class FiadoConta(models.Model):
 	valor_total = models.DecimalField(max_digits=10, decimal_places=2)
 	valor_pago = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 	vencimento = models.DateField(db_index=True)
+	data_pagamento = models.DateField(null=True, blank=True, db_index=True)
 	status = models.CharField(max_length=10, choices=STATUS, default="pendente", db_index=True)
 	observacao = models.CharField(max_length=300, blank=True)
 	grupo_referencia = models.CharField(max_length=40, blank=True, default="", db_index=True)

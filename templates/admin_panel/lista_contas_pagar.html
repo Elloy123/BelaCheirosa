@@ -36,34 +36,61 @@
   <div class="col-md-6"><div class="alert alert-success mb-0">Total pago no periodo filtrado: <strong>R$ {{ total_pago_periodo|floatformat:2 }}</strong></div></div>
   <div class="col-md-6"><div class="alert alert-info mb-0">Parcelas com data de pagamento no periodo: <strong>{{ qtd_pagamentos_periodo }}</strong></div></div>
 </div>
-<div class="card border-0 shadow-sm"><div class="table-responsive"><table class="table mb-0">
-<thead><tr><th>Fornecedor</th><th>Referência</th><th>Parcela</th><th>Vencimento</th><th>Data pagamento</th><th>Total</th><th>Pago</th><th>Falta</th><th>Dias</th><th>Status</th><th>Ações</th></tr></thead>
-<tbody>
-{% for c in contas %}
-<tr class="{% if c.dias_para_vencer < 0 and c.status != 'pago' %}table-danger{% elif c.dias_para_vencer <= 3 and c.status != 'pago' %}table-warning{% endif %}">
-  <td>{{ c.fornecedor }}</td>
-  <td>{{ c.referencia }}</td>
-  <td>{{ c.parcela_label }}</td>
-  <td>{{ c.vencimento|date:'d/m/Y' }}</td>
-  <td>{% if c.data_pagamento %}{{ c.data_pagamento|date:'d/m/Y' }}{% else %}-{% endif %}</td>
-  <td>R$ {{ c.valor_total|floatformat:2 }}</td>
-  <td>R$ {{ c.valor_pago|floatformat:2 }}</td>
-  <td>R$ {{ c.falta_pagar|floatformat:2 }}</td>
-  <td>{{ c.dias_para_vencer }}</td>
-  <td>{{ c.get_status_display }}</td>
-  <td>
-    <a class="btn btn-outline-secondary btn-sm mb-1" href="{% url 'conta_pagar_adicionar_parcelas' c.id %}">+ Parcelas</a>
-    <form method="post" action="{% url 'conta_pagar_atualizar_pagamento' c.id %}" class="d-flex gap-1 mb-1">
-      {% csrf_token %}
-      <input type="date" name="data_pagamento" class="form-control form-control-sm" value="{% if c.data_pagamento %}{{ c.data_pagamento|date:'Y-m-d' }}{% endif %}" style="min-width:145px">
-      <button class="btn btn-sm {% if c.status == 'pago' %}btn-outline-primary{% else %}btn-rose{% endif %}">{% if c.status == 'pago' %}Editar data{% else %}Pagar{% endif %}</button>
-    </form>
-    <form method="post" action="{% url 'conta_pagar_excluir' c.id %}" onsubmit="return confirm('Excluir esta parcela do boleto?');">
-      {% csrf_token %}
-      <button class="btn btn-sm btn-outline-danger">Excluir</button>
-    </form>
-  </td>
-</tr>
-{% empty %}<tr><td colspan="11" class="text-center text-muted py-4">Sem boletos registrados.</td></tr>{% endfor %}
-</tbody></table></div></div>
+<div class="accordion" id="accordionBoletos">
+{% for grupo in grupos_boletos %}
+  <div class="accordion-item border-0 shadow-sm mb-3 rounded overflow-hidden">
+    <h2 class="accordion-header" id="boleto-heading-{{ forloop.counter }}">
+      <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#boleto-collapse-{{ forloop.counter }}" aria-expanded="false" aria-controls="boleto-collapse-{{ forloop.counter }}">
+        <div class="w-100 d-flex justify-content-between align-items-center flex-wrap gap-2 pe-3">
+          <div>
+            <div class="fw-semibold">{{ grupo.referencia }}</div>
+            <small class="text-muted">Fornecedor: {{ grupo.fornecedor }}</small>
+          </div>
+          <div class="d-flex gap-2 flex-wrap">
+            <span class="badge text-bg-light border">Total: R$ {{ grupo.total_geral|floatformat:2 }}</span>
+            <span class="badge text-bg-success">Pagas: {{ grupo.qtd_pagas }}/{{ grupo.parcelas|length }}</span>
+            <span class="badge text-bg-warning">Em aberto: R$ {{ grupo.total_aberto|floatformat:2 }}</span>
+          </div>
+        </div>
+      </button>
+    </h2>
+    <div id="boleto-collapse-{{ forloop.counter }}" class="accordion-collapse collapse" aria-labelledby="boleto-heading-{{ forloop.counter }}" data-bs-parent="#accordionBoletos">
+      <div class="accordion-body p-0">
+        <div class="table-responsive"><table class="table mb-0">
+          <thead><tr><th>Parcela</th><th>Vencimento</th><th>Data pagamento</th><th>Total</th><th>Pago</th><th>Falta</th><th>Dias</th><th>Status</th><th>Ações</th></tr></thead>
+          <tbody>
+          {% for c in grupo.parcelas %}
+          <tr class="{% if c.dias_para_vencer < 0 and c.status != 'pago' %}table-danger{% elif c.dias_para_vencer <= 3 and c.status != 'pago' %}table-warning{% endif %}">
+            <td>{{ c.parcela_label }}</td>
+            <td>{{ c.vencimento|date:'d/m/Y' }}</td>
+            <td>{% if c.data_pagamento %}{{ c.data_pagamento|date:'d/m/Y' }}{% else %}-{% endif %}</td>
+            <td>R$ {{ c.valor_total|floatformat:2 }}</td>
+            <td>R$ {{ c.valor_pago|floatformat:2 }}</td>
+            <td>R$ {{ c.falta_pagar|floatformat:2 }}</td>
+            <td>{{ c.dias_para_vencer }}</td>
+            <td>{{ c.get_status_display }}</td>
+            <td>
+              <div class="d-flex flex-column gap-1">
+                <form method="post" action="{% url 'conta_pagar_atualizar_pagamento' c.id %}" class="d-flex gap-1">
+                  {% csrf_token %}
+                  <input type="date" name="data_pagamento" class="form-control form-control-sm" value="{% if c.data_pagamento %}{{ c.data_pagamento|date:'Y-m-d' }}{% endif %}" style="min-width:145px">
+                  <button class="btn btn-sm btn-rose">Salvar</button>
+                </form>
+                <form method="post" action="{% url 'conta_pagar_excluir' c.id %}" onsubmit="return confirm('Excluir esta parcela do boleto?');">
+                  {% csrf_token %}
+                  <button class="btn btn-sm btn-outline-danger">Excluir</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table></div>
+      </div>
+    </div>
+  </div>
+{% empty %}
+  <div class="card border-0 shadow-sm"><div class="card-body text-center text-muted py-4">Sem boletos registrados.</div></div>
+{% endfor %}
+</div>
 {% endblock %}

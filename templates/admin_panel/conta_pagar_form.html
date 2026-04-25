@@ -9,13 +9,13 @@
   
   <div class="col-md-4"><label class="form-label">Valor total do boleto</label><input type="number" step="0.01" name="valor_total" id="inputValorTotal" class="form-control" required></div>
   <div class="col-md-4"><label class="form-label">Quantidade de parcelas</label><input type="number" min="1" name="parcelas" id="inputParcelas" class="form-control" value="1" required></div>
-  <div class="col-md-4"><label class="form-label">Vencimento (1ª parcela)</label><input type="date" name="vencimento" id="inputVencimento" class="form-control" required></div>
+  <div class="col-md-4"><label class="form-label">Parcelas já pagas</label><input type="number" min="0" name="parcelas_pagas" id="inputParcelasPagas" class="form-control" value="0"></div>
   
-  <div class="col-md-6"><label class="form-label">Parcelas pagas</label><input type="number" min="0" name="parcelas_pagas" id="inputParcelasPagas" class="form-control" value="0"></div>
   <div class="col-md-6"><label class="form-label">Data do pagamento</label><input type="date" name="data_pagamento" class="form-control"></div>
+  <div class="col-md-6"><label class="form-label">Observação</label><input name="observacao" class="form-control"></div>
   
   <div class="col-12">
-    <label class="form-label fw-semibold">Previsão de parcelas</label>
+    <label class="form-label fw-semibold">Datas e parcelas do boleto</label>
     <div class="card bg-light border">
       <div class="table-responsive" style="max-height:300px;overflow-y:auto;">
         <table class="table table-sm mb-0 admin-table">
@@ -29,8 +29,6 @@
       </div>
     </div>
   </div>
-
-  <div class="col-md-8"><label class="form-label">Observação</label><input name="observacao" class="form-control"></div>
   <div class="col-12"><button class="btn btn-rose">Salvar</button></div>
 </form>
 </div></div>
@@ -41,46 +39,32 @@
 (function(){
   const inputValor = document.getElementById('inputValorTotal');
   const inputParcelas = document.getElementById('inputParcelas');
-  const inputVencimento = document.getElementById('inputVencimento');
   const inputParcelasPagas = document.getElementById('inputParcelasPagas');
   const inputDataPagamento = document.querySelector('input[name="data_pagamento"]');
   const tbody = document.getElementById('tabelaParcelas');
-
-  function addMonths(date, months) {
-    const d = new Date(date);
-    d.setMonth(d.getMonth() + months);
-    return d;
-  }
-
-  function formatDate(date) {
-    return date.toLocaleDateString('pt-BR');
-  }
 
   function renderParcelas() {
     tbody.innerHTML = '';
     
     const valor_total = parseFloat(inputValor.value) || 0;
     const num_parcelas = parseInt(inputParcelas.value) || 1;
-    const vencimento = inputVencimento.value;
     const parcelas_pagas = parseInt(inputParcelasPagas.value) || 0;
 
-    if (!valor_total || !vencimento) {
-      tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">Preencha os campos acima para ver as parcelas</td></tr>';
+    if (!valor_total || num_parcelas < 1) {
+      tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">Informe valor total e quantidade de parcelas</td></tr>';
       return;
     }
 
     const valor_parcela = valor_total / num_parcelas;
-    const data_base = new Date(vencimento);
 
     for (let i = 1; i <= num_parcelas; i++) {
-      const data_vencimento = addMonths(data_base, i - 1);
       const status = i <= parcelas_pagas ? '✅ Paga' : '⏱ Pendente';
       const statusClass = i <= parcelas_pagas ? 'text-success fw-bold' : 'text-warning';
 
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td class="small fw-semibold">#${i}</td>
-        <td class="small">${formatDate(data_vencimento)}</td>
+        <td><input type="date" name="vencimento_parcela_${i}" class="form-control form-control-sm" required></td>
         <td class="small">R$ ${valor_parcela.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
         <td class="small ${statusClass}">${status}</td>
       `;
@@ -92,7 +76,6 @@
   inputValor.addEventListener('input', renderParcelas);
   inputParcelas.addEventListener('change', renderParcelas);
   inputParcelas.addEventListener('input', renderParcelas);
-  inputVencimento.addEventListener('change', renderParcelas);
   inputParcelasPagas.addEventListener('change', renderParcelas);
   inputParcelasPagas.addEventListener('input', renderParcelas);
 
@@ -105,6 +88,7 @@
 
   inputParcelasPagas.addEventListener('change', garantirDataPagamento);
   inputParcelasPagas.addEventListener('input', garantirDataPagamento);
+  renderParcelas();
 })();
 </script>
 {% endblock %}

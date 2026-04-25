@@ -34,6 +34,7 @@ urlpatterns = [
     path("painel/clientes/", views.lista_clientes, name="lista_clientes"),
     path("painel/fiados/", views.lista_fiados, name="lista_fiados"),
     path("painel/fiados/novo/", views.fiado_form, name="fiado_novo"),
+    path("painel/fiados/<int:pk>/pagamento/", views.fiado_atualizar_pagamento, name="fiado_atualizar_pagamento"),
     path("painel/fiados/<int:pk>/excluir/", views.fiado_excluir, name="fiado_excluir"),
     path("painel/boletos/", views.lista_contas_pagar, name="lista_contas_pagar"),
     path("painel/boletos/novo/", views.conta_pagar_form, name="conta_pagar_novo"),

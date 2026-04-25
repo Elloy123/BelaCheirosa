@@ -9,65 +9,69 @@
   <div class="col-md-6"><div class="alert alert-warning mb-0">Vencendo em até 3 dias: <strong>{{ qtd_alerta }}</strong></div></div>
   <div class="col-md-6"><div class="alert alert-danger mb-0">Vencidos: <strong>{{ qtd_vencidos }}</strong></div></div>
 </div>
-{% for grupo in grupos_clientes %}
-<div class="card border-0 shadow-sm mb-3">
-  <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
-    <div>
-      <div class="fw-semibold">{{ grupo.cliente.nome }}</div>
-      <small class="text-muted">Telefone: {{ grupo.cliente.telefone|default:'não informado' }}</small>
+<div class="accordion" id="accordionFiados">
+{% for grupo in grupos_referencia %}
+<div class="accordion-item border-0 shadow-sm mb-3 rounded overflow-hidden">
+  <h2 class="accordion-header" id="fiado-heading-{{ forloop.counter }}">
+    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#fiado-collapse-{{ forloop.counter }}" aria-expanded="false" aria-controls="fiado-collapse-{{ forloop.counter }}">
+      <div class="w-100 d-flex justify-content-between align-items-center flex-wrap gap-2 pe-3">
+        <div>
+          <div class="fw-semibold">{{ grupo.referencia }}</div>
+          <small class="text-muted">Cliente: {{ grupo.cliente.nome }}{% if grupo.cliente.telefone %} | {{ grupo.cliente.telefone }}{% endif %}</small>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+          <span class="badge text-bg-light border">Total: R$ {{ grupo.total_geral|floatformat:2 }}</span>
+          <span class="badge text-bg-success">Pagas: {{ grupo.qtd_pagas }}/{{ grupo.parcelas|length }}</span>
+          <span class="badge text-bg-warning">Em aberto: R$ {{ grupo.total_aberto|floatformat:2 }}</span>
+        </div>
+      </div>
+    </button>
+  </h2>
+  <div id="fiado-collapse-{{ forloop.counter }}" class="accordion-collapse collapse" aria-labelledby="fiado-heading-{{ forloop.counter }}" data-bs-parent="#accordionFiados">
+    <div class="accordion-body p-0">
+      <div class="table-responsive">
+        <table class="table mb-0 align-middle">
+          <thead>
+            <tr>
+              <th>Parcela</th>
+              <th>Vencimento</th>
+              <th>Data pagamento</th>
+              <th>Total</th>
+              <th>Pago</th>
+              <th>Falta</th>
+              <th>Status</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for f in grupo.parcelas %}
+            <tr class="{% if f.dias_para_vencer < 0 and f.status != 'pago' %}table-danger{% elif f.dias_para_vencer <= 3 and f.status != 'pago' %}table-warning{% endif %}">
+              <td>{{ f.parcela_numero }}/{{ f.parcelas_total }}</td>
+              <td>{{ f.vencimento|date:'d/m/Y' }}</td>
+              <td>{% if f.data_pagamento %}{{ f.data_pagamento|date:'d/m/Y' }}{% else %}-{% endif %}</td>
+              <td>R$ {{ f.valor_total|floatformat:2 }}</td>
+              <td>R$ {{ f.valor_pago|floatformat:2 }}</td>
+              <td>R$ {{ f.falta_pagar|floatformat:2 }}</td>
+              <td>{{ f.get_status_display }}</td>
+              <td>
+                <div class="d-flex flex-column gap-1">
+                  <form method="post" action="{% url 'fiado_atualizar_pagamento' f.id %}" class="d-flex gap-1">
+                    {% csrf_token %}
+                    <input type="date" name="data_pagamento" class="form-control form-control-sm" value="{% if f.data_pagamento %}{{ f.data_pagamento|date:'Y-m-d' }}{% endif %}" style="min-width:145px">
+                    <button class="btn btn-sm btn-rose">Salvar</button>
+                  </form>
+                  <form method="post" action="{% url 'fiado_excluir' f.id %}" onsubmit="return confirm('Excluir este registro de fiado?');">
+                    {% csrf_token %}
+                    <button class="btn btn-sm btn-outline-danger">Excluir</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     </div>
-    <div class="d-flex gap-2 flex-wrap">
-      <span class="badge text-bg-light border">Total: R$ {{ grupo.total_geral|floatformat:2 }}</span>
-      <span class="badge text-bg-warning">Em aberto: R$ {{ grupo.total_aberto|floatformat:2 }}</span>
-      <span class="badge text-bg-danger">Vencidos: {{ grupo.qtd_vencidos }}</span>
-      <span class="badge text-bg-secondary">Vencendo: {{ grupo.qtd_alerta }}</span>
-    </div>
-  </div>
-  <div class="table-responsive">
-    <table class="table mb-0 align-middle">
-      <thead>
-        <tr>
-          <th>Referência</th>
-          <th>Parcela</th>
-          <th>Vencimento</th>
-          <th>Total</th>
-          <th>Pago</th>
-          <th>Falta</th>
-          <th>Status</th>
-          <th>Alerta</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for f in grupo.itens %}
-        <tr class="{% if f.dias_para_vencer < 0 and f.status != 'pago' %}table-danger{% elif f.dias_para_vencer <= 3 and f.status != 'pago' %}table-warning{% endif %}">
-          <td>{{ f.referencia }}</td>
-          <td>{{ f.parcela_numero }}/{{ f.parcelas_total }}</td>
-          <td>{{ f.vencimento|date:'d/m/Y' }}</td>
-          <td>R$ {{ f.valor_total|floatformat:2 }}</td>
-          <td>R$ {{ f.valor_pago|floatformat:2 }}</td>
-          <td>R$ {{ f.falta_pagar|floatformat:2 }}</td>
-          <td>{{ f.get_status_display }}</td>
-          <td>
-            {% if f.status == 'pago' %}
-            <span class="text-success small">Pago</span>
-            {% elif f.dias_para_vencer < 0 %}
-            <span class="text-danger small">Atrasado ({{ f.dias_para_vencer }} dia[s])</span>
-            {% elif f.dias_para_vencer == 0 %}
-            <span class="text-warning small">Vence hoje</span>
-            {% elif f.dias_para_vencer <= 3 %}
-            <span class="text-warning small">Vence em {{ f.dias_para_vencer }} dia(s)</span>
-            {% else %}
-            <span class="text-muted small">Em dia</span>
-            {% endif %}
-            <form method="post" action="{% url 'fiado_excluir' f.id %}" class="mt-2" onsubmit="return confirm('Excluir este registro de fiado?');">
-              {% csrf_token %}
-              <button class="btn btn-sm btn-outline-danger">Excluir</button>
-            </form>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
   </div>
 </div>
 {% empty %}
@@ -75,4 +79,5 @@
   <div class="card-body text-center text-muted py-4">Sem registros de fiado.</div>
 </div>
 {% endfor %}
+ </div>
 {% endblock %}
