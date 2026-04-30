@@ -571,7 +571,7 @@ def dashboard(request):
 	)
 	vendas_por_forma = [{"forma_pagamento": r["venda__forma_pagamento"], "qtd": r["qtd"], "total": r["total"]} for r in vendas_por_forma_raw]
 
-	fiados_alerta = FiadoConta.objects.filter(status__in=["pendente", "parcial"], vencimento__lte=hoje + timedelta(days=3))
+	fiados_alerta = FiadoConta.objects.filter(status="pendente", vencimento__lte=hoje + timedelta(days=3))
 	boletos_alerta = ContaPagar.objects.filter(status__in=["pendente", "parcial"], vencimento__lte=hoje + timedelta(days=3))
 	pedidos_pendentes = Pedido.objects.filter(status="pendente").count()
 
@@ -1231,6 +1231,8 @@ def cliente_detalhe(request, pk):
 def lista_fiados(request):
 	hoje = date.today()
 	fiados = FiadoConta.objects.select_related("cliente").order_by("cliente__nome", "vencimento", "id")
+	for item in fiados:
+		item.referencia_base = _referencia_base_parcela(item.referencia)
 
 	grupos_referencia = []
 	mapa_grupos = {}
@@ -1258,9 +1260,9 @@ def lista_fiados(request):
 			grupo["qtd_pagas"] += 1
 		if item.status in {"pendente", "parcial"}:
 			grupo["total_aberto"] += item.falta_pagar
-			if item.dias_para_vencer < 0:
+			if item.status == "pendente" and item.dias_para_vencer < 0:
 				grupo["qtd_vencidos"] += 1
-			elif item.dias_para_vencer <= 3:
+			elif item.status == "pendente" and item.dias_para_vencer <= 3:
 				grupo["qtd_alerta"] += 1
 
 	return render(
@@ -1268,8 +1270,9 @@ def lista_fiados(request):
 		"admin_panel/lista_fiados.html",
 		{
 			"grupos_referencia": grupos_referencia,
-			"qtd_alerta": sum(1 for f in fiados if f.status in {"pendente", "parcial"} and 0 <= f.dias_para_vencer <= 3),
-			"qtd_vencidos": sum(1 for f in fiados if f.status in {"pendente", "parcial"} and f.dias_para_vencer < 0),
+			"qtd_alerta": sum(1 for f in fiados if f.status == "pendente" and 0 <= f.dias_para_vencer <= 3),
+			"qtd_vencidos": sum(1 for f in fiados if f.status == "pendente" and f.dias_para_vencer < 0),
+			"clientes": Cliente.objects.order_by("nome"),
 			"hoje": hoje,
 		},
 	)
@@ -1590,7 +1593,9 @@ def fiado_atualizar_pagamento(request, pk):
 		return redirect("lista_fiados")
 
 	registro = get_object_or_404(FiadoConta, pk=pk)
+	ja_estava_pago = registro.status == "pago"
 	data_pagamento_raw = request.POST.get("data_pagamento", "").strip()
+	valor_pago_raw = request.POST.get("valor_pago", "").strip()
 	if data_pagamento_raw:
 		try:
 			data_pagamento = date.fromisoformat(data_pagamento_raw)
@@ -1600,11 +1605,88 @@ def fiado_atualizar_pagamento(request, pk):
 	else:
 		data_pagamento = date.today()
 
-	registro.valor_pago = registro.valor_total
+	if valor_pago_raw:
+		try:
+			valor_pago_informado = _parse_decimal_input(valor_pago_raw)
+		except InvalidOperation:
+			messages.error(request, "Valor de pagamento invalido.")
+			return redirect("lista_fiados")
+		if valor_pago_informado <= 0:
+			messages.error(request, "Informe um valor de pagamento maior que zero.")
+			return redirect("lista_fiados")
+		novo_valor_pago = registro.valor_pago + valor_pago_informado
+		registro.valor_pago = min(registro.valor_total, novo_valor_pago)
+	else:
+		registro.valor_pago = registro.valor_total
+
 	registro.data_pagamento = data_pagamento
 	registro.status = _status_por_pagamento(registro.valor_total, registro.valor_pago)
 	registro.save(update_fields=["valor_pago", "data_pagamento", "status"])
-	messages.success(request, f"Pagamento da parcela {registro.parcela_numero}/{registro.parcelas_total} salvo.")
+
+	if registro.status == "parcial":
+		messages.success(request, f"Pagamento parcial da parcela {registro.parcela_numero}/{registro.parcelas_total} salvo.")
+	elif ja_estava_pago:
+		messages.success(request, f"Data de pagamento da parcela {registro.parcela_numero}/{registro.parcelas_total} atualizada.")
+	else:
+		messages.success(request, f"Parcela {registro.parcela_numero}/{registro.parcelas_total} marcada como paga.")
+	return redirect("lista_fiados")
+
+
+@staff_member_required(login_url="/admin/login/")
+def fiado_editar(request, pk):
+	if request.method != "POST":
+		return redirect("lista_fiados")
+
+	registro = get_object_or_404(FiadoConta, pk=pk)
+	cliente_id = request.POST.get("cliente_id", "").strip()
+	referencia_base = request.POST.get("referencia", "").strip()
+	valor_total_raw = request.POST.get("valor_total", "").strip()
+
+	if not cliente_id:
+		messages.error(request, "Selecione o cliente do fiado.")
+		return redirect("lista_fiados")
+	if not referencia_base:
+		messages.error(request, "Informe o nome/referencia do fiado.")
+		return redirect("lista_fiados")
+
+	try:
+		valor_total_novo = _parse_decimal_input(valor_total_raw)
+	except InvalidOperation:
+		messages.error(request, "Valor total invalido.")
+		return redirect("lista_fiados")
+
+	if valor_total_novo <= 0:
+		messages.error(request, "Valor total deve ser maior que zero.")
+		return redirect("lista_fiados")
+
+	cliente = get_object_or_404(Cliente, pk=cliente_id)
+	grupo = (registro.grupo_referencia or "").strip()
+
+	with transaction.atomic():
+		if grupo:
+			parcelas = FiadoConta.objects.filter(grupo_referencia=grupo)
+			for parcela in parcelas:
+				parcela.cliente = cliente
+				parcela.referencia = f"{referencia_base} - Parcela {parcela.parcela_numero}/{parcela.parcelas_total}"
+				if parcela.pk == registro.pk:
+					parcela.valor_total = valor_total_novo
+					parcela.valor_pago = min(parcela.valor_pago, valor_total_novo)
+					parcela.status = _status_por_pagamento(parcela.valor_total, parcela.valor_pago)
+					parcela.save(update_fields=["cliente", "referencia", "valor_total", "valor_pago", "status"])
+				else:
+					parcela.save(update_fields=["cliente", "referencia"])
+		else:
+			referencia = referencia_base
+			if registro.parcelas_total > 1:
+				referencia = f"{referencia_base} - Parcela {registro.parcela_numero}/{registro.parcelas_total}"
+			registro.cliente = cliente
+			registro.referencia = referencia
+			registro.valor_total = valor_total_novo
+			registro.valor_pago = min(registro.valor_pago, valor_total_novo)
+			registro.status = _status_por_pagamento(registro.valor_total, registro.valor_pago)
+			registro.save(update_fields=["cliente", "referencia", "valor_total", "valor_pago", "status"])
+
+	messages.success(request, "Fiado atualizado com sucesso.")
 	return redirect("lista_fiados")
 
 

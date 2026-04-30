@@ -27,6 +27,31 @@
   <small class="text-muted">{{ paginator.count }} produto{{ paginator.count|pluralize:"s" }} encontrado{{ paginator.count|pluralize:"s" }}</small>
   <small class="text-muted">Página {{ page_obj.number }} de {{ paginator.num_pages }}</small>
 </div>
+{% if paginator.num_pages > 1 %}
+<nav class="mb-3" aria-label="Paginação de produtos">
+  <ul class="pagination justify-content-center flex-wrap mb-0">
+    {% if page_obj.has_previous %}
+    <li class="page-item">
+      <a class="page-link" href="?page={{ page_obj.previous_page_number }}&q={{ q }}&cat={{ cat }}&por_pagina={{ per_page }}">&laquo; Anterior</a>
+    </li>
+    {% endif %}
+    {% for num in paginas_visiveis %}
+    {% if num is None %}
+    <li class="page-item disabled"><span class="page-link">&hellip;</span></li>
+    {% else %}
+    <li class="page-item {% if page_obj.number == num %}active{% endif %}">
+      <a class="page-link" href="?page={{ num }}&q={{ q }}&cat={{ cat }}&por_pagina={{ per_page }}">{{ num }}</a>
+    </li>
+    {% endif %}
+    {% endfor %}
+    {% if page_obj.has_next %}
+    <li class="page-item">
+      <a class="page-link" href="?page={{ page_obj.next_page_number }}&q={{ q }}&cat={{ cat }}&por_pagina={{ per_page }}">Próxima &raquo;</a>
+    </li>
+    {% endif %}
+  </ul>
+</nav>
+{% endif %}
 <div class="card border-0 shadow-sm">
   <div class="table-responsive">
     <table class="table admin-table">
@@ -57,53 +82,6 @@
         {% endfor %}
       </tbody>
     </table>
-  </div>
-</div>
-
-<div class="card border-0 shadow-sm mt-3">
-  <div class="card-header bg-white fw-semibold">Categorias (exclusão)</div>
-  <div class="card-body p-0">
-    <div class="table-responsive">
-      <table class="table admin-table mb-0">
-        <thead>
-          <tr><th>Categoria</th><th>Subcategorias</th><th class="text-end">Ações</th></tr>
-        </thead>
-        <tbody>
-          {% for c in categorias_pai %}
-          <tr>
-            <td class="fw-semibold">{{ c.nome }}</td>
-            <td>
-              {% for sub in c.subcategorias.all %}
-                <span class="badge rounded-pill text-bg-light border me-1">{{ sub.nome }}</span>
-              {% empty %}
-                <span class="text-muted">Sem subcategorias</span>
-              {% endfor %}
-            </td>
-            <td class="text-end">
-              <form method="post" action="{% url 'categoria_excluir' c.id %}" class="d-inline">
-                {% csrf_token %}
-                <button class="btn btn-outline-danger btn-sm" onclick="return confirm('Excluir a categoria {{ c.nome }}?');">Excluir</button>
-              </form>
-            </td>
-          </tr>
-          {% for sub in c.subcategorias.all %}
-          <tr>
-            <td class="ps-4">↳ {{ sub.nome }}</td>
-            <td><span class="text-muted">Subcategoria de {{ c.nome }}</span></td>
-            <td class="text-end">
-              <form method="post" action="{% url 'categoria_excluir' sub.id %}" class="d-inline">
-                {% csrf_token %}
-                <button class="btn btn-outline-danger btn-sm" onclick="return confirm('Excluir a subcategoria {{ sub.nome }}?');">Excluir</button>
-              </form>
-            </td>
-          </tr>
-          {% endfor %}
-          {% empty %}
-          <tr><td colspan="3" class="text-center py-4 text-muted">Sem categorias cadastradas</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
   </div>
 </div>
 

@@ -25,7 +25,6 @@ urlpatterns = [
     path("painel/produtos/", views.lista_produtos, name="lista_produtos"),
     path("painel/produtos/novo/", views.produto_form, name="produto_novo"),
     path("painel/produtos/<int:pk>/editar/", views.produto_form, name="produto_editar"),
-    path("painel/produtos/categorias/<int:pk>/excluir/", views.categoria_excluir, name="categoria_excluir"),
     path("painel/produtos/categorias/novo/", views.categoria_rapida_form, name="categoria_rapida_form"),
     path("painel/produtos/subcategorias/novo/", views.subcategoria_rapida_form, name="subcategoria_rapida_form"),
 
@@ -36,6 +35,7 @@ urlpatterns = [
     path("painel/fiados/", views.lista_fiados, name="lista_fiados"),
     path("painel/fiados/novo/", views.fiado_form, name="fiado_novo"),
     path("painel/fiados/<int:pk>/pagamento/", views.fiado_atualizar_pagamento, name="fiado_atualizar_pagamento"),
+    path("painel/fiados/<int:pk>/editar/", views.fiado_editar, name="fiado_editar"),
     path("painel/fiados/<int:pk>/excluir/", views.fiado_excluir, name="fiado_excluir"),
     path("painel/boletos/", views.lista_contas_pagar, name="lista_contas_pagar"),
     path("painel/boletos/novo/", views.conta_pagar_form, name="conta_pagar_novo"),
